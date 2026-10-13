@@ -2,6 +2,7 @@ package stream
 
 import (
 	"NanoKVM-Server/common"
+	"NanoKVM-Server/internal/platform"
 	"fmt"
 	"os"
 	"sync"
@@ -36,6 +37,10 @@ func GetFrameRateCounter() *FrameRateCounter {
 					vision.SetActualFPS(counter.fps.Load())
 				}
 
+				// Ubuntu exposes FPS through the settings API, not the appliance LCD file.
+				if platform.VIM4 {
+					continue
+				}
 				data := fmt.Sprintf("%d", counter.fps.Load())
 				err := os.WriteFile("/kvmapp/kvm/now_fps", []byte(data), 0o666)
 				if err != nil {

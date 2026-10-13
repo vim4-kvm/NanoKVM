@@ -1,6 +1,7 @@
 package router
 
 import (
+	"NanoKVM-Server/internal/platform"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,6 +29,14 @@ func web(r *gin.Engine) {
 	execDir := filepath.Dir(execPath)
 	webPath := fmt.Sprintf("%s/web", execDir)
 
+	if platform.VIM4 {
+		r.Use(func(c *gin.Context) {
+			if c.Request.URL.Path == "/" || c.Request.URL.Path == "/index.html" {
+				c.Header("Cache-Control", "no-store")
+			}
+			c.Next()
+		})
+	}
 	r.Use(static.Serve("/", static.LocalFile(webPath, true)))
 }
 
