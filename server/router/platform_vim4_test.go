@@ -41,7 +41,7 @@ func TestUbuntuRoutesPreserveAuthenticationAndAdminBoundary(t *testing.T) {
 	networkRouter(r)
 	extensionsRouter(r)
 	platformRouter(r)
-	for _, path := range []string{"/api/network/dns", "/api/network/static-ip", "/api/vm/timezone", "/api/vm/device/virtual", "/api/extensions/tailscale/start", "/api/extensions/assistant/start", "/api/vm/edid"} {
+	for _, path := range []string{"/api/network/dns", "/api/network/static-ip", "/api/vm/timezone", "/api/vm/device/virtual", "/api/extensions/tailscale/start", "/api/vm/edid"} {
 		for _, authenticated := range []bool{false, true} {
 			req := httptest.NewRequest("POST", path, strings.NewReader(`{}`))
 			req.Header.Set("Content-Type", "application/json")

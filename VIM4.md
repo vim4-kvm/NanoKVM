@@ -33,7 +33,7 @@ builder checks its ABI with an aborting stub, never included in device packages.
 | Storage | Validated image uploads/downloads and virtual disk/CD-ROM helper |
 | Ubuntu management | NetworkManager, DNS, chrony, SSH, mDNS, hostname, time and reboot through restricted helpers |
 | Accounts | Native roles/sessions; existing credentials and disabled-login preference retained; no Ubuntu password changes |
-| Automation | Native MCP/PicoClaw, ARM64 runtime in an application-owned directory, optional assistant venv |
+| Automation | Native MCP/PicoClaw, ARM64 runtime in an application-owned directory |
 | Updates | Validated `vim4-nanokvm` ARM64 deb bundles; no appliance firmware installation |
 
 Only HDMI and USB-C are connected. ATX, external displays and other unattached

@@ -3,7 +3,7 @@
 The VIM4 application uses the existing video pipeline's `Snapshot(ctx)` method
 for both MCP and PicoClaw screenshots. Snapshot processing can resize and
 recompress JPEGs but must not call `ReadMjpeg` or change video transport.
-The separate AI assistant remains installed and configured independently.
+PicoClaw is the supported AI assistant; the legacy Python assistant is removed on upgrade.
 
 ## Runtime package
 
@@ -85,8 +85,6 @@ predicate is `mode != controlmode.ModePicoclaw ||
 !picoclaw.GetSessionLock().BlocksManualInput()`. Preserve HID Acquire/Release and
 last-viewer cleanup. Apply this arbitration to other manual writers (paste,
 shortcuts and jiggler) as appropriate; do not let them bypass active AI writes.
-The independent assistant's direct HID path also needs an explicit arbitration
-policy before concurrent use with MCP/PicoClaw can be considered supported.
 
 ## Frontend integration
 

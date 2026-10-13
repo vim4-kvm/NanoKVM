@@ -8,7 +8,6 @@ import (
 	"NanoKVM-Server/config"
 	"NanoKVM-Server/middleware"
 	"NanoKVM-Server/proto"
-	"NanoKVM-Server/service/extensions/assistant"
 	"NanoKVM-Server/service/hid"
 	"NanoKVM-Server/service/vm"
 	"context"
@@ -116,8 +115,6 @@ func platformRouter(r *gin.Engine) {
 	admin.POST("/vm/edid/upload", uploadEdidVIM4)
 	admin.GET("/vm/edid/custom", customEdidListVIM4)
 	admin.POST("/vm/edid/delete", deleteEdidVIM4)
-	admin.POST("/extensions/assistant/install", assistantInstallVIM4(assistant.NewService()))
-	admin.POST("/extensions/assistant/start", assistantStartVIM4)
 	v := vm.NewService()
 	admin.GET("/vm/timezone", v.GetTimeZone)
 	admin.GET("/vm/time", v.GetTime)

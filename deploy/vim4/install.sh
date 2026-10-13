@@ -33,8 +33,7 @@ if [ ! -e /etc/kvm/server.yaml ]; then
 fi
 install -m 0755 "$1" /opt/vim4-nanokvm/NanoKVM-Server.new
 cp -R "$2/." /opt/vim4-nanokvm/web/
-install -d /opt/vim4-nanokvm/assistant
-cp -R "$base/../../support/assistant/." /opt/vim4-nanokvm/assistant/
+sh "$base/remove-legacy-assistant"
 mv /opt/vim4-nanokvm/NanoKVM-Server.new /opt/vim4-nanokvm/NanoKVM-Server
 install -m 0644 "$base/nanokvm.service" /etc/systemd/system/nanokvm.service
 install -m 0644 "$base/vim4-kvm-cpufreq.service" /etc/systemd/system/vim4-kvm-cpufreq.service

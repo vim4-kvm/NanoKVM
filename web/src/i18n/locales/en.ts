@@ -1049,20 +1049,6 @@ const en = {
       collapse: 'Collapse Menu',
       expand: 'Expand Menu'
     },
-    assistant: {
-      title: 'Smart Assistant',
-      tips: {
-        intro:
-          'Smart Assistant is an experimental feature of NanoKVM that allows you to experience using a Vision-Language Model (VLM) for automated computer operations, often called "Computer Use."\nBefore using this feature, please set the video mode to MJPEG transfer and your screen resolution to 720p or lower.\nThe Smart Assistant currently relies on an external VLM model service, which requires you to provide the corresponding model server address and API key. \nThis means the model server you specify will receive screenshots of your computer screen, and you may incur related token fees. \nYou can also set up your own VLM model server on your local network to avoid these issues.',
-        content:
-          "Large models still have an unpredictable risk of hallucinations and limited operational capabilities, which may lead to unintended actions that could damage your computer's data. You must be aware of this risk. While the Smart Assistant is operating, you must monitor its actions and be ready to interrupt any potentially risky operations at any time!\nClicking the button below will open the Smart Assistant in a new window, and by doing so, you acknowledge and accept the risks mentioned above.\nFor security reasons, this service is currently limited to a single user. It automatically shutdown service when the page is closed, requiring you to click the button again to start a new session.",
-        contribute:
-          'The code has been open-sourced, so feel free to review it. Contributions are also welcome!',
-        warning: 'Warning'
-      },
-      install: 'Install Dependencies',
-      tryNow: 'Try It Now'
-    },
     notification: {
       browser: {
         title: 'Browser Recommendation',

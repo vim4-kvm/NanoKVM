@@ -74,17 +74,6 @@ class SystemTest(unittest.TestCase):
         self.assertEqual(changes[-1], old)
         self.assertEqual(len(applies), 2)
 
-    def test_assistant_prepare_installs_venv_only_when_missing(self):
-        for status, installs in (('install ok installed', False), ('', True)):
-            calls = []
-            def command(*args, **kwargs):
-                calls.append(args)
-                return status if args[0] == 'dpkg-query' else ''
-            with self.subTest(status=status), patch.object(system, 'run', side_effect=command):
-                system.execute('assistant-prepare', {})
-            self.assertEqual(any(c[:2] == ('apt-get', 'install') for c in calls), installs)
-            self.assertIn(('install', '-d', '-o', 'khadas', '-g', 'khadas', '-m', '0755', system.ASSISTANT_DIR), calls)
-
     def test_invalid_hostnames_do_not_execute(self):
         with patch.object(system, 'run') as command:
             for value in ('bad name', '-option', '../path', 'x;reboot', None, []):

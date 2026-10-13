@@ -10,7 +10,6 @@ import subprocess
 import sys
 
 
-ASSISTANT_DIR = '/var/lib/vim4-kvm/assistant'
 
 
 def run(*args, timeout=20, check=True):
@@ -187,17 +186,6 @@ def execute(action, req):
         return {}
     if action == 'reboot':
         run('systemd-run', '--on-active=3', '/usr/bin/systemctl', 'reboot')
-        return {}
-    if action == 'assistant-prepare':
-        # Ubuntu blocks system-wide pip; the assistant's packages go into a
-        # venv owned by the application user, created from the web terminal.
-        if run('dpkg-query', '-W', '-f=${Status}', 'python3-venv', check=False) != 'install ok installed':
-            try:
-                run('apt-get', 'install', '-y', 'python3-venv', timeout=600)
-            except RuntimeError:
-                run('apt-get', 'update', timeout=300)
-                run('apt-get', 'install', '-y', 'python3-venv', timeout=600)
-        run('install', '-d', '-o', 'khadas', '-g', 'khadas', '-m', '0755', ASSISTANT_DIR)
         return {}
     raise ValueError('Unsupported system operation')
 

@@ -1,0 +1,17 @@
+#!/bin/sh
+# Only remove the retired assistant; PicoClaw owns a separate runtime and data.
+set -eu
+pattern='^/var/lib/vim4-kvm/assistant/bin/python /opt/vim4-nanokvm/assistant/cua_webapp.py( |$)'
+if pgrep -f "$pattern" >/dev/null; then
+    pkill -TERM -f "$pattern" || [ "$?" = 1 ]
+    remaining=10
+    while pgrep -f "$pattern" >/dev/null && [ "$remaining" -gt 0 ]; do
+        sleep 1
+        remaining=$((remaining - 1))
+    done
+    if pgrep -f "$pattern" >/dev/null; then
+        pkill -KILL -f "$pattern" || [ "$?" = 1 ]
+    fi
+fi
+rm -rf /opt/vim4-nanokvm/assistant /var/lib/vim4-kvm/assistant
+rm -f /tmp/vim4-assistant.log
