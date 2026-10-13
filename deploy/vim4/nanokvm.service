@@ -12,6 +12,7 @@ SupplementaryGroups=video input dialout audio
 RuntimeDirectory=vim4-nanokvm
 RuntimeDirectoryMode=0700
 WorkingDirectory=/opt/vim4-nanokvm
+ExecStartPre=+/usr/libexec/vim4-media disk restore
 ExecStart=/opt/vim4-nanokvm/NanoKVM-Server
 Restart=on-failure
 RestartSec=3

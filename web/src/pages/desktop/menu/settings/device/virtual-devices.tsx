@@ -6,6 +6,7 @@ import { cancelDownloadImage, statusImage } from '@/api/download.ts';
 import { getHidMode } from '@/api/hid.ts';
 import { getMountedImage } from '@/api/storage.ts';
 import * as api from '@/api/virtual-device.ts';
+import { isVIM4 } from '@/lib/platform';
 
 const imageUpdatedEvent = 'nanokvm:image-updated';
 
@@ -103,6 +104,8 @@ export const VirtualDevices = () => {
 
   // a transfer writes to /data, which the host takes over
   async function stopTransfer() {
+    // VIM4's USB disk has its own backing file, separate from image uploads.
+    if (isVIM4) return;
     const rsp = await statusImage();
     if (rsp.code !== 0 || rsp.data?.status !== 'in_progress') return;
 
@@ -132,7 +135,11 @@ export const VirtualDevices = () => {
         <div className="flex flex-col space-y-1">
           <span>{t('settings.device.disk')}</span>
           <span className="text-xs text-neutral-500">
-            {isImageMounted ? t('settings.device.diskLocked') : t('settings.device.diskDesc')}
+            {isVIM4
+              ? t('settings.device.vim4DiskDesc')
+              : isImageMounted
+                ? t('settings.device.diskLocked')
+                : t('settings.device.diskDesc')}
           </span>
         </div>
 
@@ -151,7 +158,9 @@ export const VirtualDevices = () => {
             {t(
               isImageMounted
                 ? 'settings.device.diskCancelMount'
-                : 'settings.device.diskBreakDownload'
+                : isVIM4
+                  ? 'settings.device.vim4DiskDesc'
+                  : 'settings.device.diskBreakDownload'
             )}
           </p>
         </div>

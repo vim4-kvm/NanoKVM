@@ -477,6 +477,8 @@ const zh = {
         hidOnlyDesc: '该模式下不再挂载虚拟设备，仅保留基础的 HID 控制功能。',
         disk: '虚拟U盘',
         diskDesc: '在远程主机中挂载虚拟U盘',
+        vim4DiskDesc:
+          '512 MiB 可写 FAT32 U 盘，文件在断开及重启后保留。关闭前请先在被控机弹出；启用时 USB 网卡暂时断开。',
         diskLocked: '挂载镜像期间已关闭（开启会取消镜像挂载）',
         diskCancelMount:
           '开启虚拟U盘会取消当前挂载的镜像，并中断正在进行的镜像下载或上传，是否继续？',

@@ -18,6 +18,7 @@ import (
 )
 
 const ImageDirectory = "/var/lib/vim4-kvm/images"
+const USBDiskImage = "/var/lib/vim4-kvm/usb/disk.img"
 const mountDevice = "/sys/kernel/config/usb_gadget/kvm/functions/mass_storage.disk0/lun.0/file"
 
 var imageMutex sync.Mutex
@@ -79,7 +80,11 @@ func (s *Service) GetImages(c *gin.Context) {
 }
 func (s *Service) GetMountedImage(c *gin.Context) {
 	var rsp proto.Response
-	rsp.OkRspWithData(c, proto.GetMountedImageRsp{File: mountedImage()})
+	file := mountedImage()
+	if file == USBDiskImage {
+		file = ""
+	}
+	rsp.OkRspWithData(c, proto.GetMountedImageRsp{File: file})
 }
 func (s *Service) MountImage(c *gin.Context) {
 	var req proto.MountImageReq
@@ -147,4 +152,4 @@ func (s *Service) DeleteImage(c *gin.Context) {
 	rsp.OkRsp(c)
 }
 func SetDataWritable(bool) error { return nil }
-func DataDiskAttached() bool     { return false }
+func DataDiskAttached() bool     { return mountedImage() == USBDiskImage }

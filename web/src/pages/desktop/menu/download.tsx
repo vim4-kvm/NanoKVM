@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 
 import { cancelDownloadImage, downloadImage, imageEnabled, statusImage } from '@/api/download.ts';
 import { getVirtualDevice, updateVirtualDevice } from '@/api/virtual-device.ts';
+import { isVIM4 } from '@/lib/platform';
 import { keyboardLockAtom } from '@/jotai/keyboard.ts';
 import { MenuItem } from '@/components/menu-item.tsx';
 
@@ -54,7 +55,7 @@ export const DownloadImage = () => {
     // /data is read-only while the virtual disk serves it to the host
     getVirtualDevice()
       .then((res) => {
-        setIsDiskShared(!!res.data?.disk);
+        setIsDiskShared(!isVIM4 && !!res.data?.disk);
       })
       .catch(() => {
         setIsDiskShared(false);

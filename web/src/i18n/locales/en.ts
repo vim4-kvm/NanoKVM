@@ -490,6 +490,8 @@ const en = {
         hidOnlyDesc: 'Stop emulating virtual devices, retaining only basic HID control',
         disk: 'Virtual Disk',
         diskDesc: 'Mount SD card on the remote host',
+        vim4DiskDesc:
+          '512 MiB writable FAT32 USB drive. Files survive disconnects and restarts. Eject it on the host before disabling; USB networking pauses while it is connected.',
         diskLocked: 'Off while an image is mounted (turning it on cancels the mount)',
         diskCancelMount:
           'Enabling the virtual disk cancels the mounted image and interrupts a running image download or upload. Continue?',

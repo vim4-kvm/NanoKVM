@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 loader = importlib.machinery.SourceFileLoader('media', str(Path(__file__).with_name('vim4-media')))
@@ -13,6 +14,38 @@ loader.exec_module(media)
 
 
 class MediaTest(unittest.TestCase):
+    @unittest.skipUnless(hasattr(os, 'posix_fallocate') and os.geteuid() == 0, 'Linux root helper')
+    def test_usb_disk_is_created_once_and_failed_format_leaves_no_image(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.multiple(media, USB_DIR=root, USB_IMAGE=root / 'disk.img', USB_SIZE=1024 * 1024):
+                with patch.object(media.subprocess, 'run', side_effect=OSError('format failed')):
+                    with self.assertRaises(OSError):
+                        media.usb_disk_fd()
+                self.assertEqual(list(root.iterdir()), [])
+                with patch.object(media.subprocess, 'run') as formatter:
+                    fd = media.usb_disk_fd()
+                    os.write(fd, b'host-written-data')
+                    os.close(fd)
+                    fd = media.usb_disk_fd()
+                    try:
+                        self.assertEqual(os.read(fd, 17), b'host-written-data')
+                    finally:
+                        os.close(fd)
+                    formatter.assert_called_once()
+
+    @unittest.skipUnless(hasattr(os, 'posix_fallocate') and os.geteuid() == 0, 'Linux root helper')
+    def test_usb_disk_does_not_follow_symlinks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / 'keep'
+            target.write_bytes(b'keep' * 128)
+            (root / 'disk.img').symlink_to(target)
+            with patch.multiple(media, USB_DIR=root, USB_IMAGE=root / 'disk.img'):
+                with self.assertRaises(OSError):
+                    media.usb_disk_fd()
+            self.assertEqual(target.read_bytes(), b'keep' * 128)
+
     def test_descriptor_survives_path_replacement(self):
         with tempfile.TemporaryDirectory() as directory:
             media.IMAGES = Path(directory)

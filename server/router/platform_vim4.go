@@ -9,6 +9,7 @@ import (
 	"NanoKVM-Server/middleware"
 	"NanoKVM-Server/proto"
 	"NanoKVM-Server/service/hid"
+	"NanoKVM-Server/service/storage"
 	"NanoKVM-Server/service/vm"
 	"context"
 	"github.com/gin-gonic/gin"
@@ -83,7 +84,7 @@ func platformHandler(route string, handler gin.HandlerFunc) gin.HandlerFunc {
 	case "GET /vm/device/virtual":
 		return virtualDevicesVIM4
 	case "POST /vm/device/virtual":
-		return toggleMicrophoneVIM4
+		return toggleVirtualDeviceVIM4
 	case "POST /vm/gpio", "POST /vm/oled", "POST /vm/swap", "POST /api/network/wifi", "POST /api/network/wifi/verify":
 		return unconfiguredVIM4
 	}
@@ -127,23 +128,29 @@ func gadgetLinked(function string) bool {
 }
 func virtualDevicesVIM4(c *gin.Context) {
 	var rsp proto.Response
-	rsp.OkRspWithData(c, gin.H{"network": gadgetLinked("ncm.usb0"), "media": gadgetLinked("mass_storage.disk0"), "disk": false, "mic": gadgetLinked("uac2.usb0"), "isMicEnabled": gadgetLinked("uac2.usb0"), "isNetworkEnabled": gadgetLinked("ncm.usb0")})
+	rsp.OkRspWithData(c, gin.H{"network": gadgetLinked("ncm.usb0"), "media": gadgetLinked("mass_storage.disk0"), "disk": storage.DataDiskAttached(), "mic": gadgetLinked("uac2.usb0"), "isMicEnabled": gadgetLinked("uac2.usb0"), "isNetworkEnabled": gadgetLinked("ncm.usb0")})
 }
-func toggleMicrophoneVIM4(c *gin.Context) {
+func toggleVirtualDeviceVIM4(c *gin.Context) {
 	var req proto.UpdateVirtualDeviceReq
 	var rsp proto.Response
-	if proto.ParseFormRequest(c, &req) != nil || req.Device != "mic" {
+	if proto.ParseFormRequest(c, &req) != nil || (req.Device != "mic" && req.Device != "disk") {
 		rsp.ErrRsp(c, -1, "unsupported virtual device")
 		return
 	}
 	state := "on"
-	if gadgetLinked("uac2.usb0") {
+	action := "microphone"
+	enabled := gadgetLinked("uac2.usb0")
+	if req.Device == "disk" {
+		action = "disk"
+		enabled = storage.DataDiskAttached()
+	}
+	if enabled {
 		state = "off"
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
 	defer cancel()
-	if err := hid.GetHid().Reenumerate(exec.CommandContext(ctx, "sudo", "-n", "/usr/libexec/vim4-media", "microphone", state).Run); err != nil {
-		rsp.ErrRsp(c, -2, "failed to switch USB microphone")
+	if err := hid.GetHid().Reenumerate(exec.CommandContext(ctx, "sudo", "-n", "/usr/libexec/vim4-media", action, state).Run); err != nil {
+		rsp.ErrRsp(c, -2, "failed to switch USB device")
 		return
 	}
 	rsp.OkRspWithData(c, proto.UpdateVirtualDeviceRsp{On: state == "on"})
