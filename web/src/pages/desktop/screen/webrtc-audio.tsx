@@ -18,6 +18,7 @@ export const WebrtcAudio = () => {
     const ws = new WebSocket(`${getBaseUrl('ws')}/api/stream/audio/webrtc`);
     const peer = new RTCPeerConnection({ iceServers: [] });
     let disposed = false;
+    let started = false;
     let retry: ReturnType<typeof setTimeout> | undefined;
     const candidates: RTCIceCandidateInit[] = [];
     const reconnect = () => {
@@ -36,11 +37,10 @@ export const WebrtcAudio = () => {
     peer.ontrack = ({ track }) => {
       if (elementRef.current) elementRef.current.srcObject = new MediaStream([track]);
     };
-    ws.onopen = async () => {
-      if (disposed) {
-        ws.close();
-        return;
-      }
+    const startAudio = async (iceServers: RTCIceServer[]) => {
+      if (disposed || started) return;
+      started = true;
+      peer.setConfiguration({ iceServers });
       const transceiver = peer.addTransceiver('audio', { direction: 'sendrecv' });
       setSender(transceiver.sender);
       try {
@@ -55,7 +55,9 @@ export const WebrtcAudio = () => {
       try {
         const msg = JSON.parse(data);
         const value = msg.data && JSON.parse(msg.data);
-        if (msg.event === 'audio-answer') {
+        if (msg.event === 'ice-servers') {
+          await startAudio(value);
+        } else if (msg.event === 'audio-answer') {
           await peer.setRemoteDescription(value);
           for (const candidate of candidates.splice(0)) await peer.addIceCandidate(candidate);
         } else if (msg.event === 'audio-candidate' && value?.candidate) {
