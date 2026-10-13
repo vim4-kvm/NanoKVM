@@ -1,0 +1,306 @@
+#!/usr/bin/python3
+"""Bounded Ubuntu operations for the NanoKVM device and network APIs."""
+import ipaddress
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+
+ASSISTANT_DIR = '/var/lib/vim4-kvm/assistant'
+
+
+def run(*args, timeout=20, check=True):
+    result = subprocess.run(args, capture_output=True, text=True, timeout=timeout,
+                            env={**os.environ, 'LC_ALL': 'C', 'DEBIAN_FRONTEND': 'noninteractive'})
+    if check and result.returncode:
+        raise RuntimeError(f'{args[0]} operation failed')
+    return result.stdout.strip()
+
+
+def fields(line):
+    result, part, escaped = [], '', False
+    for char in line:
+        if escaped:
+            part += char
+            escaped = False
+        elif char == '\\':
+            escaped = True
+        elif char == ':':
+            result.append(part)
+            part = ''
+        else:
+            part += char
+    return result + [part]
+
+
+def wifi_device():
+    for line in run('nmcli', '-t', '-f', 'DEVICE,TYPE', 'device').splitlines():
+        device, kind = fields(line)
+        if kind == 'wifi':
+            return device
+    return None
+
+
+def wifi_rows(device, scan):
+    output = run('nmcli', '-t', '-f', 'IN-USE,SSID,BSSID,SIGNAL,FREQ,SECURITY',
+                 'device', 'wifi', 'list', 'ifname', device, '--rescan', 'yes' if scan else 'no')
+    result = []
+    for line in output.splitlines():
+        active, ssid, bssid, signal, freq, security = fields(line)
+        if ssid:
+            result.append((active == '*', dict(ssid=ssid, bssid=bssid, signal=int(signal),
+                frequency=int(freq.split()[0]), security=security)))
+    return result
+
+
+def static_addresses(content):
+    if not isinstance(content, str):
+        raise ValueError('IP configuration must be text')
+    addresses, gateway = [], ''
+    for line in content.splitlines():
+        tokens = line.split('#')[0].split()
+        if not tokens:
+            continue
+        if len(tokens) > 2 or '/' not in tokens[0]:
+            raise ValueError('Use IP/CIDR [Gateway] on each line')
+        address = ipaddress.IPv4Interface(tokens[0])
+        addresses.append(str(address))
+        if len(tokens) == 2:
+            candidate = ipaddress.IPv4Address(tokens[1])
+            if candidate not in address.network or (gateway and gateway != str(candidate)):
+                raise ValueError('Gateway must be in the subnet; only one gateway is allowed')
+            gateway = str(candidate)
+    if not addresses:
+        raise ValueError('An IPv4 address is required')
+    return addresses, gateway
+
+
+def static_ip(action, req):
+    uuid = run('nmcli', '-g', 'GENERAL.CON-UUID', 'device', 'show', 'eth0')
+    if not re.fullmatch(r'[0-9a-f-]{36}', uuid):
+        raise ValueError('Ethernet has no active NetworkManager profile')
+    keys = ('ipv4.method', 'ipv4.addresses', 'ipv4.gateway', 'ipv4.dns')
+    old = {key: run('nmcli', '-g', key, 'connection', 'show', uuid) for key in keys}
+    if action == 'static-get':
+        lines = old['ipv4.addresses'].split(',') if old['ipv4.addresses'] else []
+        if lines and old['ipv4.gateway']:
+            lines[0] += ' ' + old['ipv4.gateway']
+        return dict(enabled=old['ipv4.method'] == 'manual', ip='\n'.join(lines))
+    if type(req.get('enabled')) is not bool:
+        raise ValueError('enabled must be boolean')
+    if req['enabled']:
+        addresses, gateway = static_addresses(req.get('ip', ''))
+        new = dict(zip(keys, ('manual', ','.join(addresses), gateway, old['ipv4.dns'])))
+    else:
+        if req.get('ip'):
+            raise ValueError('DHCP does not accept static addresses')
+        new = dict(zip(keys, ('auto', '', '', '')))
+    if new == old:
+        return {}
+    def modify(properties):
+        run('nmcli', 'connection', 'modify', uuid,
+            *[item for pair in properties.items() for item in pair])
+    modify(new)
+    try:
+        run('nmcli', 'device', 'reapply', 'eth0')
+    except Exception:
+        modify(old)
+        run('nmcli', 'device', 'reapply', 'eth0')
+        raise
+    return {}
+
+
+def execute(action, req):
+    if action in ('dns-get', 'dns-set'):
+        # Separate helper processes must not interleave profile snapshots and rollback.
+        with open('/run/lock/vim4-network.lock', 'a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            return dns(action, req)
+    if action in ('static-get', 'static-set'):
+        return static_ip(action, req)
+    if action.startswith('wifi-'):
+        device = wifi_device()
+        if action == 'wifi-get' and not device:
+            return dict(supported=False, connected=False, apMode=False)
+        if not device:
+            raise ValueError('No Wi-Fi adapter is configured')
+        if action in ('wifi-get', 'wifi-scan'):
+            rows = wifi_rows(device, action == 'wifi-scan')
+            connected = next((item for active, item in rows if active), None)
+            if action == 'wifi-scan':
+                return dict(wifiList=[item for active, item in rows if not active])
+            return dict(supported=True, apMode=False, connected=connected is not None, wifi=connected)
+        if action == 'wifi-connect':
+            ssid, password = req.get('ssid', ''), req.get('password', '')
+            if not isinstance(ssid, str) or not 1 <= len(ssid.encode()) <= 32:
+                raise ValueError('Invalid SSID')
+            if not isinstance(password, str) or len(password) > 128 or any(c in password for c in '\n\r\0'):
+                raise ValueError('Invalid Wi-Fi password')
+            # --ask reads secrets from stdin, not the process argument list.
+            result = subprocess.run(['nmcli', '--ask', '--wait', '35', 'device', 'wifi',
+                'connect', ssid, 'ifname', device], input=password + '\n',
+                capture_output=True, text=True, timeout=40, env={**os.environ, 'LC_ALL': 'C'})
+            if result.returncode:
+                raise RuntimeError('Wi-Fi connection failed')
+            return {}
+        if action == 'wifi-disconnect':
+            state = run('nmcli', '-g', 'GENERAL.STATE', 'device', 'show', device)
+            if state.startswith('100'):
+                run('nmcli', 'device', 'disconnect', device)
+            return {}
+    if action in ('ssh-get', 'mdns-get'):
+        units = ['ssh.service', 'ssh.socket'] if action == 'ssh-get' else ['avahi-daemon.service']
+        return dict(enabled=any(subprocess.run(['systemctl', 'is-active', '--quiet', unit]).returncode == 0 for unit in units))
+    if action in ('ssh-enable', 'ssh-disable', 'mdns-enable', 'mdns-disable'):
+        enable = action.endswith('-enable')
+        if action.startswith('ssh-'):
+            if enable:
+                run('systemctl', 'enable', '--now', 'ssh.service')
+            else:
+                run('systemctl', 'disable', '--now', 'ssh.socket', 'ssh.service')
+        else:
+            run('systemctl', 'enable' if enable else 'disable', '--now', 'avahi-daemon.service')
+        return {}
+    if action == 'hostname-set':
+        name = req.get('hostname', '')
+        if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?', name):
+            raise ValueError('Invalid hostname')
+        run('hostnamectl', 'set-hostname', name)
+        return {}
+    if action == 'timezone-set':
+        zone = req.get('timezone', '')
+        if not isinstance(zone, str) or not zone or '\0' in zone:
+            raise ValueError('Invalid timezone')
+        root = Path('/usr/share/zoneinfo')
+        path = (root / zone).resolve()
+        if not path.is_relative_to(root) or not path.is_file():
+            raise ValueError('Invalid timezone')
+        run('timedatectl', 'set-timezone', zone)
+        return {}
+    if action == 'time-sync':
+        run('chronyc', 'burst', '4/4')
+        run('chronyc', 'makestep')
+        return {}
+    if action == 'reboot':
+        run('systemd-run', '--on-active=3', '/usr/bin/systemctl', 'reboot')
+        return {}
+    if action == 'assistant-prepare':
+        # Ubuntu blocks system-wide pip; the assistant's packages go into a
+        # venv owned by the application user, created from the web terminal.
+        if run('dpkg-query', '-W', '-f=${Status}', 'python3-venv', check=False) != 'install ok installed':
+            try:
+                run('apt-get', 'install', '-y', 'python3-venv', timeout=600)
+            except RuntimeError:
+                run('apt-get', 'update', timeout=300)
+                run('apt-get', 'install', '-y', 'python3-venv', timeout=600)
+        run('install', '-d', '-o', 'khadas', '-g', 'khadas', '-m', '0755', ASSISTANT_DIR)
+        return {}
+    raise ValueError('Unsupported system operation')
+
+
+def dns_servers(values):
+    if not isinstance(values, list) or len(values) > 6:
+        raise ValueError('Expected at most six DNS servers')
+    result = []
+    for value in values:
+        if not isinstance(value, str) or '%' in value:
+            raise ValueError('Invalid DNS address')
+        tokens = value.split('#', 1)[0].split()
+        if not tokens:
+            continue
+        if len(tokens) != 1:
+            raise ValueError('Expected one DNS address per entry')
+        address = str(ipaddress.ip_address(tokens[0]))
+        if address not in result:
+            result.append(address)
+    return result
+
+
+def dns_profile():
+    # Prefer a default-route profile; never modify inactive profiles or VPN DNS.
+    candidates = []
+    for line in run('nmcli', '-t', '-f', 'DEVICE,TYPE,STATE', 'device').splitlines():
+        device, kind, state = fields(line)
+        if kind not in ('ethernet', 'wifi') or state != 'connected':
+            continue
+        uuid = run('nmcli', '-g', 'GENERAL.CON-UUID', 'device', 'show', device)
+        if not re.fullmatch(r'[0-9a-f-]{36}', uuid):
+            continue
+        default = run('nmcli', '-g', 'GENERAL.DEFAULT,GENERAL.DEFAULT6', 'connection', 'show', uuid)
+        candidates.append((device, kind, uuid))
+        if 'yes' in default.splitlines():
+            return candidates[-1]
+    if len(candidates) == 1:
+        return candidates[0]
+    raise ValueError('No unambiguous active network connection')
+
+
+def dns(action, req):
+    mode = req.get('mode')
+    servers = []
+    if action == 'dns-set':
+        if mode not in ('dhcp', 'manual'):
+            raise ValueError('Invalid DNS mode')
+        servers = dns_servers(req.get('servers', []))
+        if mode == 'manual' and not servers:
+            raise ValueError('Manual DNS requires a server')
+        if mode == 'dhcp' and servers:
+            raise ValueError('Automatic DNS does not accept manual servers')
+    device, kind, uuid = dns_profile()
+    keys = ('ipv4.dns', 'ipv6.dns', 'ipv4.ignore-auto-dns', 'ipv6.ignore-auto-dns')
+    old = {key: run('nmcli', '--escape', 'no', '-g', key, 'connection', 'show', uuid) for key in keys}
+    if action == 'dns-set':
+        new = {
+            'ipv4.dns': ','.join(s for s in servers if ':' not in s),
+            'ipv6.dns': ','.join(s for s in servers if ':' in s),
+            'ipv4.ignore-auto-dns': 'yes' if mode == 'manual' else 'no',
+            'ipv6.ignore-auto-dns': 'yes' if mode == 'manual' else 'no',
+        }
+        if old == new:
+            return {}
+        def modify(properties):
+            run('nmcli', 'connection', 'modify', uuid,
+                *[item for pair in properties.items() for item in pair], timeout=5)
+        try:
+            modify(new)
+            run('nmcli', 'device', 'reapply', device, timeout=10)
+        except Exception:
+            modify(old)
+            run('nmcli', 'device', 'reapply', device, timeout=10)
+            raise
+        return {}
+    manual = any(old[key] == 'yes' for key in keys[2:]) or bool(old['ipv4.dns'] or old['ipv6.dns'])
+    configured = [s.strip() for key in keys[:2] for s in old[key].split(',') if s.strip()]
+    effective = run('nmcli', '--escape', 'no', '-g', 'IP4.DNS,IP6.DNS', 'device', 'show', device).splitlines()
+    automatic = []
+    options = run('nmcli', '--escape', 'no', '-g', 'DHCP4.OPTION,DHCP6.OPTION', 'device', 'show', device)
+    for line in options.splitlines():
+        name, separator, value = line.partition(' = ')
+        if separator and name.strip() in ('domain_name_servers', 'dhcp6_name_servers'):
+            automatic.extend(value.split())
+    address = run('nmcli', '--escape', 'no', '-g', 'IP4.ADDRESS', 'device', 'show', device).splitlines()
+    address = address[0] if address else ''
+    gateway = run('nmcli', '--escape', 'no', '-g', 'IP4.GATEWAY', 'device', 'show', device)
+    return dict(mode='manual' if manual else 'dhcp', servers=configured,
+                effective=effective, dhcp=list(dict.fromkeys(automatic)),
+                info=dict(interface=device, type='Wireless' if kind == 'wifi' else 'Wired',
+                          address=address, subnetMask=str(ipaddress.ip_interface(address).netmask) if address else '',
+                          gateway=gateway, searchDomains=[]))
+
+
+if __name__ == '__main__':
+    try:
+        if len(sys.argv) != 2:
+            raise ValueError('Expected one operation')
+        request = json.loads(sys.stdin.read(8193) or '{}')
+        if not isinstance(request, dict):
+            raise ValueError('Expected an object')
+        print(json.dumps(execute(sys.argv[1], request)))
+    except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired):
+        # Request values can contain credentials; never include them in errors.
+        print('Ubuntu operation failed; check parameters and device state', file=sys.stderr)
+        sys.exit(1)

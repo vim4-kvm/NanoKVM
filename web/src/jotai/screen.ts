@@ -1,6 +1,8 @@
 import { atom } from 'jotai';
+import { atomWithStorage } from 'jotai/utils';
 
 import { ControlRegionMode, InputRegion, Resolution } from '@/types';
+import type { VideoRotation } from '@/lib/video-transform';
 
 export const isHdmiEnabledAtom = atom(true);
 
@@ -11,6 +13,16 @@ export const isHdmiEnabledAtom = atom(true);
 export const videoModeAtom = atom('');
 
 export const videoScaleAtom = atom<number>(1.0);
+export const videoRotationAtom = atomWithStorage<VideoRotation>('nanokvm-video-rotation', 0);
+
+export const videoVolumeAtom = atom(0);
+export const videoParametersAtom = atom({
+  fps: 60,
+  bitrate: 12000,
+  gop: 120,
+  quality: 80,
+  rateControlMode: 'cbr'
+});
 
 // browser screen resolution
 export const resolutionAtom = atom<Resolution | null>(null);

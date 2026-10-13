@@ -35,8 +35,6 @@ const (
 	downloadStatusFailed         downloadStatus = "failed"
 	downloadStatusChecksumFailed downloadStatus = "checksum_failed"
 
-	imageDirectory = "/data"
-
 	// ISO 9660 and UDF volume descriptors live in sector 16 of the image.
 	volumeDescriptorOffset = 0x8001
 	volumeDescriptorSize   = 5
@@ -166,7 +164,7 @@ func (s *Service) finishDownload(done chan struct{}, status downloadStatus) {
 func (s *Service) ImageEnabled(c *gin.Context) {
 	var rsp proto.Response
 
-	testFile := "/data/.testfile"
+	testFile := filepath.Join(imageDirectory, ".testfile")
 	file, err := os.Create(testFile)
 	if err != nil {
 		rsp.OkRspWithData(c, &proto.ImageEnabledRsp{Enabled: false})
@@ -329,6 +327,7 @@ func (s *Service) DownloadImageFile(c *gin.Context) {
 			return
 		}
 		tempPath := out.Name()
+		defer out.Close()
 		defer os.Remove(tempPath)
 
 		hasher := sha256.New()
@@ -370,7 +369,7 @@ func (s *Service) DownloadImageFile(c *gin.Context) {
 		}
 
 		outPath := filepath.Join(imageDirectory, filename)
-		if err := os.Rename(tempPath, outPath); err != nil {
+		if err := publishImage(tempPath, outPath); err != nil {
 			rsp.ErrRsp(c, -1, "cannot install uploaded image")
 			return
 		}
@@ -394,8 +393,8 @@ func validateISOFilename(filename string) error {
 	if filepath.Base(filename) != filename || strings.Contains(filename, "..") {
 		return errors.New("invalid filename")
 	}
-	if !strings.HasSuffix(strings.ToLower(filename), ".iso") {
-		return errors.New("only .iso files allowed")
+	if !strings.HasSuffix(strings.ToLower(filename), ".iso") && !strings.HasSuffix(strings.ToLower(filename), ".img") {
+		return errors.New("only .iso or .img files allowed")
 	}
 	if !validISOFilename.MatchString(filename) {
 		return errors.New("invalid filename")
@@ -428,6 +427,10 @@ func (s *Service) DownloadImage(c *gin.Context) {
 	filename := filepath.Base(u.Path)
 	if filename == "." || filename == "/" || filename == "" {
 		rsp.ErrRsp(c, -1, "invalid url")
+		return
+	}
+	if err := validateISOFilename(filename); err != nil {
+		rsp.ErrRsp(c, -1, err.Error())
 		return
 	}
 
@@ -504,6 +507,9 @@ func (s *Service) downloadRemoteImage(
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("download request returned status %d", resp.StatusCode)
 	}
+	if err := ensureImageSpace(imageDirectory, resp.ContentLength); err != nil {
+		return err
+	}
 
 	tempFile, err := os.CreateTemp(imageDirectory, ".nanokvm-download-*")
 	if err != nil {
@@ -535,7 +541,7 @@ func (s *Service) downloadRemoteImage(
 	}
 
 	destPath := filepath.Join(imageDirectory, filename)
-	if err := os.Rename(tempPath, destPath); err != nil {
+	if err := publishImage(tempPath, destPath); err != nil {
 		return fmt.Errorf("install downloaded image failed: %w", err)
 	}
 

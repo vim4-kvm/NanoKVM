@@ -1,3 +1,5 @@
+//go:build !vim4
+
 package picoclaw
 
 import (
@@ -5,10 +7,12 @@ import (
 )
 
 const (
+	picoclawPlatformHome    = ""
 	picoclawBinaryPath      = "/usr/bin/picoclaw"
 	picoclawCacheDir        = "/root/.picoclaw-cache"
 	picoclawPIDFileName     = ".picoclaw.pid"
 	picoclawDownloadURL     = "https://cdn.sipeed.com/nanokvm/resources/picoclaw/v0.2.8/picoclaw_Linux_riscv64.tar.gz"
+	picoclawPinnedSHA512    = ""
 	picoclawChecksumURL     = "https://cdn.sipeed.com/nanokvm/resources/picoclaw/v0.2.8/sha512.txt"
 	etcInitPicoclawScript   = "/etc/init.d/S96picoclaw"
 	kvmappPicoclawScript    = "/kvmapp/system/init.d/S96picoclaw"

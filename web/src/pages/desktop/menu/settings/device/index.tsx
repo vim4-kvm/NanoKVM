@@ -1,6 +1,9 @@
 import { Divider } from 'antd';
 import { useTranslation } from 'react-i18next';
 
+import { isVIM4 } from '@/lib/platform';
+
+import { Datetime } from '../../vim4/datetime';
 import { Advanced } from './advanced';
 import { Hdmi } from './hdmi.tsx';
 import { Mdns } from './mdns.tsx';
@@ -21,6 +24,7 @@ export const Device = () => {
       <div className="flex flex-col space-y-8">
         <Ssh />
         <Mdns />
+        {isVIM4 && <Datetime />}
         <Hdmi />
         <Divider className="opacity-50" />
 

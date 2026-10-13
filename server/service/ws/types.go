@@ -32,6 +32,8 @@ type Client struct {
 	keyboardLedOnce    sync.Once
 	keyboardLedWorkers sync.WaitGroup
 	closeOnce          sync.Once
+	releaseOnce        sync.Once
+	hidAcquired        bool
 	workers            sync.WaitGroup
 }
 

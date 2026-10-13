@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"NanoKVM-Server/common"
 	"NanoKVM-Server/service/controlmode"
 
 	"github.com/gin-gonic/gin"
@@ -15,6 +16,7 @@ import (
 func TestReleaseRuntimeSessionAllowsMCPMode(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	service := &Service{
+		vision:  &common.KvmVision{},
 		control: controlmode.NewManager(filepath.Join(t.TempDir(), "mode"), controlmode.ModeMCP),
 	}
 	recorder := httptest.NewRecorder()

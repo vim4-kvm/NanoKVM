@@ -21,6 +21,9 @@ import (
 var validFilenameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 func (s *Service) OfflineUpdate(c *gin.Context) {
+	if platformUpdate(c, true) {
+		return
+	}
 	var rsp proto.Response
 
 	if !acquireUpdateLock() {

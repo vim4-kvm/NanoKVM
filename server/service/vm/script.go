@@ -2,6 +2,7 @@ package vm
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,7 +12,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"NanoKVM-Server/proto"
-	"NanoKVM-Server/utils"
 )
 
 const ScriptDirectory = "/etc/kvm/scripts"
@@ -19,21 +19,16 @@ const ScriptDirectory = "/etc/kvm/scripts"
 func (s *Service) GetScripts(c *gin.Context) {
 	var rsp proto.Response
 
-	var files []string
-	err := filepath.Walk(ScriptDirectory, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if !info.IsDir() && isScript(info.Name()) {
-			files = append(files, info.Name())
-		}
-
-		return nil
-	})
-	if err != nil {
+	files := []string{}
+	entries, err := os.ReadDir(ScriptDirectory)
+	if err != nil && !os.IsNotExist(err) {
 		rsp.ErrRsp(c, -1, "get scripts failed")
 		return
+	}
+	for _, entry := range entries {
+		if entry.Type().IsRegular() && isScript(entry.Name()) {
+			files = append(files, entry.Name())
+		}
 	}
 
 	rsp.OkRspWithData(c, &proto.GetScriptsRsp{
@@ -46,29 +41,45 @@ func (s *Service) GetScripts(c *gin.Context) {
 func (s *Service) UploadScript(c *gin.Context) {
 	var rsp proto.Response
 
-	_, header, err := c.Request.FormFile("file")
+	file, header, err := c.Request.FormFile("file")
 	if err != nil {
 		rsp.ErrRsp(c, -1, "bad request")
 		return
 	}
+	defer file.Close()
 
-	if !isScript(header.Filename) {
+	target, err := scriptPath(ScriptDirectory, header.Filename)
+	if err != nil {
 		rsp.ErrRsp(c, -2, "invalid arguments")
 		return
 	}
 
-	if _, err = os.Stat(ScriptDirectory); err != nil {
-		_ = os.MkdirAll(ScriptDirectory, 0o755)
+	if err = os.MkdirAll(ScriptDirectory, 0o755); err != nil {
+		rsp.ErrRsp(c, -2, "create directory failed")
+		return
 	}
 
-	target := fmt.Sprintf("%s/%s", ScriptDirectory, header.Filename)
-	err = c.SaveUploadedFile(header, target)
+	// Write a new inode then rename so replacing a script never follows a symlink
+	// or exposes a partially uploaded file to the runner.
+	dst, err := os.CreateTemp(ScriptDirectory, ".upload-*")
+	if err != nil {
+		rsp.ErrRsp(c, -2, "create file failed")
+		return
+	}
+	defer dst.Close()
+	defer os.Remove(dst.Name())
+
+	buf := make([]byte, 32*1024)
+	_, err = io.CopyBuffer(dst, file, buf)
 	if err != nil {
 		rsp.ErrRsp(c, -2, "save failed")
 		return
 	}
 
-	_ = utils.EnsurePermission(target, 0o100)
+	if dst.Close() != nil || os.Chmod(dst.Name(), 0700) != nil || os.Rename(dst.Name(), target) != nil {
+		rsp.ErrRsp(c, -2, "save failed")
+		return
+	}
 
 	data := &proto.UploadScriptRsp{
 		File: header.Filename,
@@ -87,28 +98,31 @@ func (s *Service) RunScript(c *gin.Context) {
 		return
 	}
 
-	command := fmt.Sprintf("%s/%s", ScriptDirectory, req.Name)
-
-	name := strings.ToLower(req.Name)
-	if strings.HasSuffix(name, ".py") {
-		command = fmt.Sprintf("python %s", command)
+	if req.Type != "foreground" && req.Type != "background" {
+		rsp.ErrRsp(c, -1, "invalid execution type")
+		return
 	}
-
+	cmd, err := scriptCommand(ScriptDirectory, req.Name)
+	if err != nil {
+		rsp.ErrRsp(c, -1, "invalid script")
+		return
+	}
 	var output []byte
-	var err error
-	cmd := exec.Command("sh", "-c", command)
 
 	if req.Type == "foreground" {
 		output, err = cmd.CombinedOutput()
 	} else {
 		cmd.Stdout = nil
 		cmd.Stderr = nil
-		go func() {
-			err := cmd.Run()
-			if err != nil {
-				log.Errorf("run script %s in background failed: %s", req.Name, err)
-			}
-		}()
+		err = cmd.Start()
+		if err == nil {
+			go func() {
+				err := cmd.Wait()
+				if err != nil {
+					log.Errorf("run script %s in background failed: %s", req.Name, err)
+				}
+			}()
+		}
 	}
 
 	if err != nil {
@@ -133,7 +147,11 @@ func (s *Service) DeleteScript(c *gin.Context) {
 		return
 	}
 
-	file := fmt.Sprintf("%s/%s", ScriptDirectory, req.Name)
+	file, err := scriptPath(ScriptDirectory, req.Name)
+	if err != nil {
+		rsp.ErrRsp(c, -1, "invalid script")
+		return
+	}
 
 	if err := os.Remove(file); err != nil {
 		log.Errorf("delete script %s failed: %s", file, err)
@@ -152,4 +170,42 @@ func isScript(name string) bool {
 	}
 
 	return false
+}
+
+func scriptPath(directory, name string) (string, error) {
+	if !isScript(name) || filepath.Base(name) != name || strings.ContainsAny(name, "\\\x00") {
+		return "", fmt.Errorf("invalid script name")
+	}
+	return filepath.Join(directory, name), nil
+}
+
+func scriptCommand(directory, name string) (*exec.Cmd, error) {
+	path, err := scriptPath(directory, name)
+	if err != nil {
+		return nil, err
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("script must be a regular file")
+	}
+	interpreter := "/bin/sh"
+	if strings.EqualFold(filepath.Ext(name), ".py") {
+		interpreter = "python3"
+	}
+	if interpreter == "/bin/sh" {
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		var prefix [2]byte
+		_, _ = file.Read(prefix[:])
+		_ = file.Close()
+		if string(prefix[:]) == "#!" {
+			return exec.Command(path), nil
+		}
+	}
+	return exec.Command(interpreter, path), nil
 }

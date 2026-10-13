@@ -2,6 +2,7 @@ package webrtc
 
 import (
 	"NanoKVM-Server/config"
+	"NanoKVM-Server/internal/platform"
 	"NanoKVM-Server/middleware"
 	"encoding/json"
 	"sync"
@@ -22,6 +23,7 @@ var (
 	}
 	globalManager *WebRTCManager
 	managerOnce   sync.Once
+	h265Manager   = newH265Manager()
 )
 
 func getManager() *WebRTCManager {
@@ -32,6 +34,12 @@ func getManager() *WebRTCManager {
 }
 
 func Connect(c *gin.Context) {
+	connectVideo(c, false)
+}
+
+func ConnectH265(c *gin.Context) { connectVideo(c, true) }
+
+func connectVideo(c *gin.Context, h265 bool) {
 	// create WebSocket connection
 	wsConn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -57,6 +65,11 @@ func Connect(c *gin.Context) {
 		log.Errorf("failed to create h264 media engine: %s", err)
 		return
 	}
+	if h265 {
+		if err := registerH265(mediaEngine); err != nil {
+			return
+		}
+	}
 
 	videoConn, err := createPeerConnection(iceServers, mediaEngine)
 	if err != nil {
@@ -70,6 +83,7 @@ func Connect(c *gin.Context) {
 
 	// create client
 	client := NewClient(wsConn, videoConn)
+	client.h265 = h265
 	if err := client.AddTrack(); err != nil {
 		log.Errorf("failed to add track: %s", err)
 		return
@@ -150,6 +164,11 @@ func createMediaEngine() (*webrtc.MediaEngine, error) {
 	if err := mediaEngine.RegisterDefaultCodecs(); err != nil {
 		log.Errorf("failed to register default codecs: %s", err)
 		return nil, err
+	}
+	if platform.VIM4 {
+		if err := mediaEngine.RegisterHeaderExtension(webrtc.RTPHeaderExtensionCapability{URI: "http://www.webrtc.org/experiments/rtp-hdrext/playout-delay"}, webrtc.RTPCodecTypeVideo); err != nil {
+			return nil, err
+		}
 	}
 
 	return mediaEngine, nil

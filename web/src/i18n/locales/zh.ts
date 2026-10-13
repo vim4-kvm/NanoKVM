@@ -125,7 +125,20 @@ const zh = {
         videoError: '视频显示异常',
         noHdmi: '未检测到 HDMI 信号',
         unavailable: '画面暂时无法显示'
-      }
+      },
+      vim4: {
+        resolution: '采集分辨率',
+        frameRateLimit: '最高 {{fps}} FPS',
+        resolutionHint:
+          '仅调整采集输出，不改变 HDMI 输入。实际帧率取决于信号源、FPS 设置和视频模式。',
+        mjpegLimit: 'MJPEG 上限为 10 帧/秒，实际帧率取决于分辨率。设置对所有观看者生效。'
+      },
+      qualityAuto: '自动',
+      rotation: '旋转',
+      noSignal: 'HDMI 无信号',
+      inconsistentVideoMode: '已暂停，其他视频模式正在播放中',
+      upload: '上传',
+      advanced: '高级设置'
     },
     keyboard: {
       title: '键盘',
@@ -240,7 +253,19 @@ const zh = {
         tf3: '将 TF 卡插入读卡器并连接到你的电脑；',
         tf4: '从电脑上拷贝镜像文件到 TF 卡的 /data 目录下；',
         tf5: '将 TF 卡重新插入 NanoKVM。'
-      }
+      },
+      usbNetworkNotice:
+        '挂载镜像期间会暂时断开 USB 网卡，弹出后恢复。请通过以太网或 Wi-Fi 管理 KVM。',
+      upload: '上传镜像',
+      uploaded: '已上传',
+      mount: '挂载镜像',
+      mounted: '已挂载',
+      fetchError: '获取镜像列表失败，请刷新重试',
+      uploadError: '上传失败，请重试',
+      readOnly: '只读',
+      checksum: '校验和',
+      checksumFailed: '计算校验和失败，请重试。',
+      download: '下载镜像'
     },
     script: {
       title: '脚本',
@@ -272,7 +297,8 @@ const zh = {
       flowControlHard: '硬件',
       dataBits: '数据位',
       stopBits: '停止位',
-      confirm: '确定'
+      confirm: '确定',
+      unconfigured: '尚未配置外接串口，请连接适配器后填写设备路径。'
     },
     wol: {
       title: 'Wake-on-LAN',
@@ -349,6 +375,15 @@ const zh = {
           Wired: '有线',
           Wireless: '无线',
           Other: '其他'
+        },
+        arch: '指令架构',
+        device_number: '设备编号',
+        pikvm: {
+          title: '切换 PiKVM',
+          attention: '注意',
+          desc1: '是否要将当前系统切换为 PiKVM？',
+          desc2: '切换系统后设备会自动重启。',
+          confirm: '确定'
         }
       },
       appearance: {
@@ -451,7 +486,101 @@ const zh = {
         reboot: '重新启动',
         rebootDesc: '您确定要重新启动 NanoKVM 吗？',
         okBtn: '是',
-        cancelBtn: '否'
+        cancelBtn: '否',
+        scheduledScreenOff: {
+          title: '定时熄屏',
+          description: '在指定时间段内关闭 Desk 屏幕',
+          start: '开始',
+          end: '结束',
+          invalidRange: '开始时间和结束时间不能相同。',
+          saveFailed: '无法保存定时熄屏设置。'
+        },
+        displayPolicy: {
+          title: 'Desk 屏幕',
+          description: '选择内置屏幕闲置时的显示方式',
+          modes: {
+            alwaysOn: '始终显示',
+            idleClock: '闲置时显示时钟',
+            idleOff: '闲置后熄屏'
+          },
+          saveFailed: '无法保存屏幕显示设置。'
+        },
+        wifi: {
+          title: 'Wi-Fi',
+          description: '配置 Wi-Fi 信息',
+          apMode: 'AP 模式已启用，该模式下仅支持手动连接',
+          others: '其他...',
+          connect: '连接 Wi-Fi',
+          connectDesc1: '请输入网络名称和密码',
+          connectDesc2: '请输入密码以连接此网络',
+          disconnect: '是否要断开该网络连接？',
+          ssid: '名称',
+          password: '密码',
+          joinBtn: '加入',
+          confirmBtn: '确定',
+          cancelBtn: '取消'
+        },
+        led: {
+          title: 'LED 灯带',
+          description: '设置 LED 灯带',
+          horizontal: '水平灯珠数量',
+          vertical: '垂直灯珠数量',
+          brightness: '灯带亮度',
+          restart: '需要重新开关 LED 灯带以应用新配置。'
+        },
+        passthrough: {
+          title: 'HDMI 环出',
+          description: '启用 HDMI 环出',
+          tip: '启用 HDMI 采集功能时，环出最高支持 4K30。如需使用 4K60 环出，请先关闭 HDMI 采集功能。'
+        },
+        capture: {
+          title: 'HDMI',
+          description: '启用 HDMI 显示/采集',
+          tip: '开启 HDMI 环出将强制使用标准帧率（4K30）。如需使用 4K40 等非标准帧率，请关闭环出功能。（部分显示器可能不兼容）'
+        },
+        staticIp: {
+          title: '静态 IP',
+          config: '设置',
+          tip: '建议在可物理接触设备的情况下进行设置，以防止配置错误导致设备无法远程访问',
+          document: '查看文档',
+          enable: '启用静态 IP',
+          placeholder: '格式：IP/CIDR [Gateway]\n示例：192.168.1.10/24',
+          notEmpty: 'IP 地址不能为空',
+          notValid: 'IP 地址内容有误',
+          success: '设置完成，请检查 IP 是否可用',
+          failed: '设置失败',
+          okBtn: '确定',
+          cancelBtn: '取消'
+        },
+        lowPower: {
+          title: '低功耗模式',
+          tips: '提示',
+          tip1: '开启低功耗模式后，设备将在空闲时自动关闭 HDMI 输出，以有效降低功耗与发热。',
+          tip2: '重新唤醒 HDMI 需进行约 10 秒的初始化操作，期间显示器将无信号输出。',
+          okBtn: '确定',
+          cancelBtn: '取消'
+        },
+        imageMounted: '镜像已挂载',
+        imageMountedDesc: '操作虚拟设备会导致当前挂载的镜像自动卸载',
+        emmc: {
+          warning: '注意',
+          tip1: '第一次挂载 eMMC 会清除 NanoKVM 设备中 /data 目录下的所有数据，在操作前请备份数据。',
+          tip2: '是否要继续进行挂载？'
+        },
+        mic: '虚拟麦克风',
+        micDesc: '在远程主机中挂载虚拟麦克风',
+        micTip:
+          '受 USB 端点资源限制，启用虚拟麦克风将自动禁用 USB 副屏功能。\n' +
+          '在进行 BIOS 操作时建议关闭虚拟麦克风，以确保最佳兼容性。',
+        datetime: {
+          timezone: '时区',
+          datetime: '时间',
+          format: '时间格式',
+          synchronize: '同步时间',
+          lastSynchronization: '上次同步：',
+          notSynchronized: '系统时间尚未同步',
+          syncNow: '立即同步'
+        }
       },
       network: {
         title: '网络',
@@ -577,6 +706,52 @@ const zh = {
           checksumMismatch: 'SHA-256 校验失败，安装包可能已损坏。',
           invalidName: '文件名格式错误，请前往 GitHub 发布页下载安装包。',
           updateFailed: '更新失败，请重试'
+        },
+        vim4Notice:
+          '仅接受 VIM4 应用更新包。可手动上传，或配置自己的更新服务器；目前未配置公开的 VIM4 更新源。',
+        vim4Source: 'VIM4 应用更新服务器的根 URL。',
+        vim4Manual: '上传 VIM4 应用更新包。',
+        vim4Reset: '清除更新源',
+        vim4ResetDesc: '清除自定义更新服务器，仍可手动上传更新包。',
+        download: '下载',
+        install: '安装',
+        changelog: '更新日志',
+        restart: '重启服务',
+        source: {
+          title: '更新服务器',
+          desc: '使用同一个根 URL 提供应用和系统固件更新。',
+          loadFailed: '读取更新服务器配置失败。',
+          saveFailed: '保存更新服务器失败。',
+          resetFailed: '恢复官方更新服务器失败。',
+          saved: '已保存更新服务器。',
+          resetDone: '已恢复官方更新服务器。',
+          invalidUrl: '请输入不含 URL 凭据且不是 manifest URL 的 HTTP(S) 更新服务器根 URL。',
+          save: '保存',
+          reset: '恢复官方源',
+          confirmTitle: '使用自定义更新服务器？',
+          confirmDesc: '此服务器会向设备提供应用和系统固件的更新元数据。请仅在信任其运营者时继续。',
+          confirm: '使用自定义服务器',
+          resetConfirmTitle: '恢复官方更新服务器？',
+          resetConfirmDesc: '后续检查更新将重新使用 NanoKVM-Pro 官方源。',
+          resetConfirm: '恢复官方源',
+          httpWarning:
+            'HTTP 无法保护更新传输过程。你还必须信任设备与更新服务器之间经过的所有网络。',
+          ready: '更新源已变更。准备好后可检查应用更新。',
+          previewDisabled: '使用自定义更新服务器时，预览更新不可用。'
+        },
+        manual: {
+          title: '手动更新',
+          desc: '上传应用包或受支持的系统固件包。',
+          upload: '上传更新包',
+          inspectFailed: '检查更新包失败。',
+          installFailed: '启动更新安装失败。',
+          confirmTitle: '安装更新包？',
+          confirmDesc: '更新包已暂存并完成检查。安装前请复核其内容和风险。',
+          install: '安装更新',
+          version: '目标版本：{{version}}',
+          size: '包大小：{{size}}',
+          finished: '更新已成功完成。',
+          refresh: '刷新页面'
         }
       },
       account: {
@@ -608,7 +783,71 @@ const zh = {
           loadFailed: '加载用户失败',
           saveFailed: '保存用户失败',
           deleteFailed: '删除用户失败'
+        },
+        vim4Notice:
+          '网页账户独立于 Ubuntu 和 SSH。是否要求登录由服务端认证设置决定，仅修改此密码不会自动开启登录认证。'
+      },
+      screen: {
+        title: '屏幕',
+        videoMode: {
+          title: '视频模式',
+          description: '选择视频编码和传输方式'
+        },
+        edid: {
+          description: '选择显示器参数',
+          default: '默认',
+          custom: '自定义',
+          document: '文档'
+        },
+        rateControlMode: {
+          title: '码率控制模式',
+          description: '选择控制码率的方式',
+          cbr: 'CBR（固定码率）：优先保证连接稳定性。最小化卡顿，但快速变化的画面可能会出现模糊或噪点。',
+          vbr: 'VBR（动态码率）：优先保证图像清晰度。快速变化的画面会导致带宽占用增加，可能引起延迟或卡顿。'
+        },
+        bitrate: {
+          title: '码率',
+          description: '调节画面清晰度与带宽占用的平衡',
+          lower: '较小的码率可以降低网络不佳时的延迟，但会牺牲图像质量，可能会出现花屏的情况。',
+          higher: '较大的码率可以提高图像清晰度，但会消耗更多网络流量，如果网络不佳可能会增加延迟。'
+        },
+        gop: {
+          description: '设置完整关键帧之间的间隔',
+          lower:
+            '数值越小发送关键帧越频繁。这可以加快画面从花屏中恢复的速度，但会损失画面细节，并且消耗更多的网络流量。',
+          higher:
+            '数值越大发送关键帧越少，会更多的发送增量更新。这可以增加画面细节并节省带宽，但画面花屏后恢复所需的时间会更长。'
+        },
+        quality: {
+          title: '画质',
+          description: '设置显示画面的质量'
+        },
+        fps: {
+          auto: '自动',
+          description: '设置画面显示帧率',
+          tip1: '设为 0 即自动模式，将按照远程主机的帧率来显示。',
+          tip2: '降低帧率可显著减少网络带宽占用，建议在网络波动或无需高帧率时手动调低。'
+        },
+        scale: {
+          title: '缩放',
+          description: '设置显示画面的缩放比例'
         }
+      },
+      kvmadmin: {
+        title: 'NanoKVM Admin',
+        description: '批量管理 NanoKVM 设备',
+        tip: '该功能使用 mDNS 协议，请确保设备中 mDNS 功能已开启',
+        install: '安装',
+        start: '运行',
+        visit: '访问',
+        uninstall: '卸载',
+        attention: '注意',
+        confirmUninstall: '确定要卸载 NanoKVM Admin 吗？',
+        clearData: '该操作会删除所有已保存的数据！',
+        installFailed: '安装失败，请重试',
+        startFailed: '运行失败，请重试',
+        okBtn: '确定',
+        cancelBtn: '取消'
       }
     },
     picoclaw: {
@@ -780,6 +1019,49 @@ const zh = {
     menu: {
       collapse: '收起',
       expand: '展开'
+    },
+    notification: {
+      browser: {
+        title: '浏览器推荐',
+        description:
+          '您当前使用的浏览器可能无法完全支持所有高级功能与特性，推荐使用 Chrome 以获得最佳体验。'
+      },
+      h265: {
+        title: '风险提示',
+        description:
+          '本设备的出厂固件已明确配置为不含 H.265/HEVC 视频编码或解码功能。\n\n' +
+          '任何由用户自行发起、对固件进行的修改、手动安装第三方 H.265 模块，或独立开发 HEVC 功能的行为，均构成最终用户对所有相关风险的承担。\n\n' +
+          '这些风险包括但不限于专利授权费用、法律责任、设备兼容性问题及性能下降。\n\n' +
+          '制造商特此明确声明，对任何用户自定义 H.265 功能的运行、安全性或法律合规性，不承担任何责任。',
+        notSupported: '当前浏览器不支持 H.265！'
+      },
+      btnOk: '确认'
+    },
+    volume: {
+      title: '音量'
+    },
+    microphone: {
+      title: '麦克风',
+      notMounted: '麦克风未挂载',
+      tip1: '远程主机尚未挂载虚拟麦克风，是否立即挂载并启用？',
+      tip2: '您也可以前往 [设置 > 设备 > 虚拟麦克风] 进行管理。',
+      confirm: '启用',
+      cancel: '取消',
+      vim4Notice:
+        '启用麦克风会让 USB 短暂重新枚举，并在关闭前断开 USB 网卡。请通过以太网或 Wi-Fi 管理 KVM。'
+    },
+    assistant: {
+      title: 'Smart Assistant / 智能助手 ',
+      tips: {
+        intro:
+          'Smart Assistant 是NanoKVM的实验性功能，可让你体验使用VLM大模型对电脑进行自动化操作，常被称为"Computer Use".\n在使用该功能前请调整视频模式为MJPEG传输，建议屏幕分辨率在720P或以下.\n目前智能助手依赖于外部VLM模型服务，需要你自行填入相应的模型服务器地址和API key，这意味着你填写的模型服务器会收到你的电脑屏幕截图，并可能产生相关tokens费用。\n你也可以自建运行VLM模型的内网服务器来避免上述问题。',
+        content:
+          '大模型目前仍有不可预知的幻觉风险和受限的操作能力，有可能做出意外的损坏电脑数据的操作，请你务必知晓这个风险，在智能助手操作时，请务必观察其操作，随时中断可能的风险操作！\n点击以下按钮即会在新窗口中打开智能助手，也表示你认可并接受以上风险。\n出于安全性考虑，该服务目前仅允许一个用户使用，且关闭页面后自动关闭服务，需要重新点击按钮来开启。',
+        contribute: '该代码已开源，你可放心查看，也欢迎贡献！',
+        warning: '警告'
+      },
+      install: '安装运行依赖',
+      tryNow: '立即体验'
     }
   }
 };

@@ -8,7 +8,7 @@ import { mouseStyleAtom } from '@/jotai/mouse';
 import DirectWorker from './direct.worker.ts?worker';
 import { ScreenViewport } from './viewport.tsx';
 
-export const H264Direct = () => {
+export const H264Direct = ({ codec = 'h264' }: { codec?: 'h264' | 'h265' }) => {
   const mouseStyle = useAtomValue(mouseStyleAtom);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -27,7 +27,7 @@ export const H264Direct = () => {
     workerRef.current = worker;
 
     const offscreen = canvasRef.current.transferControlToOffscreen();
-    const url = `${getBaseUrl('ws')}/api/stream/h264/direct`;
+    const url = `${getBaseUrl('ws')}/api/stream/${codec}/direct`;
     worker.onmessage = (
       event: MessageEvent<{ type?: string; width?: number; height?: number }>
     ) => {
@@ -39,7 +39,7 @@ export const H264Direct = () => {
       canvasRef.current.dataset.mediaWidth = String(width);
       canvasRef.current.dataset.mediaHeight = String(height);
     };
-    worker.postMessage({ type: 'h264', canvas: offscreen, url }, [offscreen]);
+    worker.postMessage({ type: 'h264', codec, canvas: offscreen, url }, [offscreen]);
 
     return () => {
       worker.postMessage({ type: 'stop' });

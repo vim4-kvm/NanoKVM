@@ -6,12 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"NanoKVM-Server/common"
 	"NanoKVM-Server/service/controlmode"
 )
 
 func TestControlModeSwitchCancelsActiveWait(t *testing.T) {
 	control := controlmode.NewManager(filepath.Join(t.TempDir(), "mode"), controlmode.ModePicoclaw)
 	service := &Service{
+		vision:     &common.KvmVision{},
 		control:    control,
 		operations: newControlOperationTracker(),
 	}
@@ -70,6 +72,7 @@ func TestControlModeSwitchCancelsActiveWait(t *testing.T) {
 func TestControlModeSwitchCancelsRuntimeLifecycle(t *testing.T) {
 	control := controlmode.NewManager(filepath.Join(t.TempDir(), "mode"), controlmode.ModePicoclaw)
 	service := &Service{
+		vision:     &common.KvmVision{},
 		control:    control,
 		operations: newControlOperationTracker(),
 	}
@@ -121,7 +124,7 @@ func TestControlModeSwitchCancelsRuntimeLifecycle(t *testing.T) {
 }
 
 func TestRuntimeReadyWaitHonorsLifecycleCancellation(t *testing.T) {
-	service := &Service{}
+	service := &Service{vision: &common.KvmVision{}}
 	ctx, cancel := context.WithCancelCause(context.Background())
 	cancel(errControlModeSwitch)
 
@@ -132,7 +135,7 @@ func TestRuntimeReadyWaitHonorsLifecycleCancellation(t *testing.T) {
 }
 
 func TestWaitDurationIsBounded(t *testing.T) {
-	service := &Service{}
+	service := &Service{vision: &common.KvmVision{}}
 	_, err := service.executeAction(context.Background(), Action{
 		Action:     "wait",
 		DurationMs: maxWaitDurationMS + 1,

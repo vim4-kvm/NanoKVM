@@ -7,6 +7,7 @@ import { useMediaQuery } from 'react-responsive';
 import { getInputRegion, setControlRegionMode } from '@/api/vm.ts';
 import { ControlRegionConfig, InputRegion } from '@/types';
 import * as storage from '@/lib/localstorage.ts';
+import { isVIM4 } from '@/lib/platform';
 import { client } from '@/lib/websocket.ts';
 import { picoclawChatOpenAtom } from '@/jotai/picoclaw.ts';
 import {
@@ -25,6 +26,7 @@ import { CaptureStatusOverlay, useCaptureStatus } from './capture-status';
 import { Keyboard } from './keyboard';
 import { Menu } from './menu';
 import { Mouse } from './mouse';
+import { initializeMouseInputLifecycle, releaseMouseInput } from './mouse/lifecycle';
 import { H264ModeNotification, Notification } from './notification.tsx';
 import { Sidebar as PicoclawSidebar } from './picoclaw';
 import { ActionOverlay } from './picoclaw/action-overlay.tsx';
@@ -44,11 +46,17 @@ function getVideoMode() {
   const defaultVideoMode = window.RTCPeerConnection ? 'h264' : 'mjpeg';
 
   const cookieVideoMode = storage.getVideoMode();
-  if (!cookieVideoMode || (cookieVideoMode === 'direct' && !window.VideoDecoder)) {
+  if (
+    !cookieVideoMode ||
+    (['direct', 'h265-direct'].includes(cookieVideoMode) && !window.VideoDecoder)
+  ) {
     return defaultVideoMode;
   }
 
-  return ['direct', 'h264', 'mjpeg'].includes(cookieVideoMode) ? cookieVideoMode : defaultVideoMode;
+  const modes = isVIM4
+    ? ['direct', 'h264', 'mjpeg', 'h265', 'h265-direct']
+    : ['direct', 'h264', 'mjpeg'];
+  return modes.includes(cookieVideoMode) ? cookieVideoMode : defaultVideoMode;
 }
 
 export const Desktop = () => {
@@ -69,6 +77,7 @@ export const Desktop = () => {
   const isPicoclawChatOpen = useAtomValue(picoclawChatOpenAtom);
 
   useEffect(() => {
+    const disposeInput = initializeMouseInputLifecycle();
     client.connect();
 
     setVideoMode(activeVideoMode);
@@ -112,6 +121,8 @@ export const Desktop = () => {
       });
 
     return () => {
+      releaseMouseInput();
+      disposeInput();
       client.close();
     };
   }, [

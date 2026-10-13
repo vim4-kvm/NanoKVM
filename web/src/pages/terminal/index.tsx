@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import '@xterm/xterm/css/xterm.css';
 
 import { notifyAuthExpired } from '@/lib/auth-events.ts';
+import { isVIM4 } from '@/lib/platform';
 import { getBaseUrl } from '@/lib/service.ts';
 import { Head } from '@/components/head.tsx';
 
@@ -44,6 +45,12 @@ export const Terminal = () => {
 
       sendSize();
       setTimeout(runPicocom, 300);
+      const params = new URLSearchParams(window.location.href.split('?')[1]);
+      if (isVIM4 && params.get('type') === 'assistant' && params.get('cmd') === 'install') {
+        ws.send(
+          'python3 -m venv /var/lib/vim4-kvm/assistant && /var/lib/vim4-kvm/assistant/bin/pip install -r /tmp/requirements.txt\r'
+        );
+      }
     };
 
     const sendSize = () => {

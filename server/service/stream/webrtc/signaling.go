@@ -53,7 +53,7 @@ func (s *SignalingHandler) Close() {
 	s.closed = true
 	s.unregisterH264ModeLocked()
 	if s.client != nil && s.client.WsConn() != nil {
-		getManager().RemoveClient(s.client.WsConn())
+		s.client.manager().RemoveClient(s.client.WsConn())
 	}
 }
 
@@ -65,10 +65,12 @@ func (s *SignalingHandler) updateVideoStreamState(state webrtc.ICEConnectionStat
 		return
 	}
 
-	manager := getManager()
+	manager := s.client.manager()
 	if s.updateH264ModeLocked(state) {
 		manager.AddClient(s.client.WsConn(), s.client)
 		manager.StartVideoStream()
+		stream.SelectVideo(s.client.h265)
+		stream.RequestKeyframe()
 		return
 	}
 
@@ -97,6 +99,9 @@ func (s *SignalingHandler) updateH264ModeLocked(state webrtc.ICEConnectionState)
 }
 
 func (s *SignalingHandler) registerH264ModeLocked() {
+	if s.client != nil && s.client.h265 {
+		return
+	}
 	if s.unregisterMode != nil {
 		return
 	}
@@ -155,6 +160,13 @@ func (s *SignalingHandler) handleVideoOffer(data string) error {
 	if err := s.client.video.SetLocalDescription(answer); err != nil {
 		log.Errorf("failed to set local description: %s", err)
 		return err
+	}
+	for _, sender := range s.client.video.GetSenders() {
+		for _, extension := range sender.GetParameters().HeaderExtensions {
+			if extension.URI == "http://www.webrtc.org/experiments/rtp-hdrext/playout-delay" {
+				s.client.track.delayID.Store(uint32(extension.ID))
+			}
+		}
 	}
 
 	answerByte, err := json.Marshal(answer)

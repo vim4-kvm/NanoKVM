@@ -10,6 +10,7 @@ import (
 )
 
 type Streamer struct {
+	h265           bool
 	mutex          sync.Mutex
 	clients        map[*client]struct{}
 	clientSnapshot atomic.Pointer[[]*client]
@@ -27,6 +28,8 @@ func newStreamer() *Streamer {
 }
 
 func (s *Streamer) addClient(client *client) {
+	stream.SelectVideo(s.h265)
+	stream.RequestKeyframe()
 	client.start()
 
 	s.mutex.Lock()
@@ -39,7 +42,7 @@ func (s *Streamer) addClient(client *client) {
 		s.running = true
 	}
 	s.mutex.Unlock()
-	vm.UpdateHdmiViewerSnapshot("direct", count, version)
+	vm.UpdateHdmiViewerSnapshot(s.viewerSource(), count, version)
 
 	if start {
 		go s.run()
@@ -60,9 +63,16 @@ func (s *Streamer) removeClient(client *client) {
 	version := s.viewerVersion
 	s.mutex.Unlock()
 	client.close()
-	vm.UpdateHdmiViewerSnapshot("direct", count, version)
+	vm.UpdateHdmiViewerSnapshot(s.viewerSource(), count, version)
 
 	log.Debugf("h264 websocket disconnected, remaining clients: %d", count)
+}
+
+func (s *Streamer) viewerSource() string {
+	if s.h265 {
+		return "h265-direct"
+	}
+	return "direct"
 }
 
 func (s *Streamer) updateClientSnapshotLocked() int {
@@ -85,7 +95,12 @@ func (s *Streamer) getClients() []*client {
 }
 
 func (s *Streamer) run() {
-	subscription := stream.SubscribeH264()
+	var subscription *stream.H264Subscription
+	if s.h265 {
+		subscription = stream.SubscribeH265()
+	} else {
+		subscription = stream.SubscribeH264()
+	}
 	defer subscription.Close()
 
 	for {
@@ -103,15 +118,25 @@ func (s *Streamer) run() {
 		}
 
 		if !hasCaptureDemand(clients) {
+			// Capture continues for shared WebRTC viewers. Frames skipped here
+			// break Direct prediction chains even if its queue later has room.
+			for _, client := range clients {
+				client.queue.discardPredictionChain()
+			}
+			stream.RequestKeyframe()
 			continue
 		}
 
-		stream.UpdateCaptureStatus(stream.CaptureModeDirect, frame.Result)
+		mode := stream.CaptureModeDirect
+		if s.h265 {
+			mode = "h265-direct"
+		}
+		stream.UpdateCaptureStatus(mode, frame.Result)
 		if frame.Result < 0 || len(frame.Data) == 0 {
 			continue
 		}
 
-		outbound := newOutboundFrame(frame.Result == 3, frame.Timestamp, frame.Data)
+		outbound := newOutboundFrame(frame.IsKeyframe(), frame.Timestamp, frame.Data)
 		for _, client := range clients {
 			client.offer(outbound)
 		}

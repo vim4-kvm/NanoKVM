@@ -1,7 +1,9 @@
 package webrtc
 
 import (
+	"NanoKVM-Server/service/stream"
 	"encoding/json"
+	"github.com/pion/rtcp"
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
@@ -69,13 +71,13 @@ func (c *Client) ReadMessage() (*Message, error) {
 }
 
 func (c *Client) AddTrack() error {
+	capability := webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264, ClockRate: 90000, SDPFmtpLine: h264SDPFmtpLine}
+	if c.h265 {
+		capability = webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH265, ClockRate: 90000}
+	}
 	// video track
 	videoTrack, err := webrtc.NewTrackLocalStaticRTP(
-		webrtc.RTPCodecCapability{
-			MimeType:    webrtc.MimeTypeH264,
-			ClockRate:   90000,
-			SDPFmtpLine: h264SDPFmtpLine,
-		},
+		capability,
 		"video",
 		"pion-video",
 	)
@@ -103,11 +105,17 @@ func (c *Client) AddTrack() error {
 }
 
 func startRTCPReader(sender *webrtc.RTPSender) {
-	rtcpBuf := make([]byte, 1500)
 	for {
-		if _, _, err := sender.Read(rtcpBuf); err != nil {
+		packets, _, err := sender.ReadRTCP()
+		if err != nil {
 			log.Debugf("RTCP reader error: %v", err)
 			return
+		}
+		for _, packet := range packets {
+			switch packet.(type) {
+			case *rtcp.PictureLossIndication, *rtcp.FullIntraRequest:
+				stream.RequestKeyframe()
+			}
 		}
 	}
 }

@@ -24,6 +24,9 @@ const (
 )
 
 func (s *Service) Update(c *gin.Context) {
+	if platformUpdate(c, false) {
+		return
+	}
 	var rsp proto.Response
 
 	if !acquireUpdateLock() {

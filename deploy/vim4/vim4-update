@@ -1,0 +1,87 @@
+#!/usr/bin/python3
+"""Install one reviewed VIM4 application package, then restart asynchronously."""
+import fcntl
+import os
+from pathlib import Path
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+
+
+def preflight(package):
+    # dpkg --no-act does not check Depends. Simulate APT instead, but keep
+    # platform upgrades explicit: the web updater only replaces the application.
+    plan = subprocess.check_output(
+        ['apt-get', '--simulate', '--no-remove', 'install', str(package)],
+        text=True, env={**os.environ, 'LC_ALL': 'C'})
+    for line in plan.splitlines():
+        if line.startswith(('Inst ', 'Remv ')) and line.split()[1] != 'vim4-nanokvm':
+            raise ValueError('Update requires platform packages; deploy the Ubuntu components first')
+
+
+def verify_installed(root):
+    for rule in (root / 'etc/sudoers.d').glob('vim4-*'):
+        helper = Path('/usr/libexec') / rule.name
+        for installed, expected in ((Path('/etc/sudoers.d') / rule.name, rule),
+                                    (helper, root / helper.relative_to('/'))):
+            if not expected.is_file() or not expected.stat().st_size or installed.read_bytes() != expected.read_bytes():
+                raise ValueError(f'Installed file does not match update: {installed}')
+        subprocess.run(['visudo', '-cf', str(Path('/etc/sudoers.d') / rule.name)], check=True)
+
+
+def apply_update(package, root):
+    preflight(package)
+    subprocess.run(['dpkg', '-i', str(package)], check=True,
+                   env={**os.environ, 'DEBIAN_FRONTEND': 'noninteractive'})
+    verify_installed(root)
+    os.sync()
+    # Let the caller persist the completed job and respond before service exit.
+    subprocess.run(['systemd-run', '--on-active=5', '/usr/bin/systemctl', 'restart', 'nanokvm'], check=True)
+
+
+def install(source):
+    source = Path(source).resolve(strict=True)
+    roots = (Path('/var/lib/kvm/update-jobs'), Path('/var/lib/vim4-kvm/update-cache'))
+    if not any(source.is_relative_to(root) for root in roots) or source.suffix != '.deb':
+        raise ValueError('Package must be in the update staging directory')
+    # Stage privately before invoking dpkg: the unprivileged application cannot
+    # replace the package between metadata verification and installation.
+    fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as incoming, tempfile.TemporaryDirectory(prefix='vim4-update-', dir='/var/tmp') as directory:
+        info = os.fstat(incoming.fileno())
+        if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= 512 << 20:
+            raise ValueError('Invalid package size or type')
+        package = Path(directory) / 'application.deb'
+        with package.open('wb') as output:
+            shutil.copyfileobj(incoming, output)
+        for field, expected in [('Package', 'vim4-nanokvm'), ('Architecture', 'arm64')]:
+            actual = subprocess.check_output(['dpkg-deb', '-f', str(package), field], text=True).strip()
+            if actual != expected:
+                raise ValueError('Package targets a different platform')
+        root = Path(directory) / 'root'
+        subprocess.run(['dpkg-deb', '-x', str(package), str(root)], check=True)
+        if (root / 'usr/local').exists() or (root / 'etc/systemd/system').exists():
+            raise ValueError('Legacy package layout; rebuild with the Ubuntu component builder')
+        for name in ('nanokvm.service', 'vim4-kvm-cpufreq.service'):
+            if (Path('/etc/systemd/system') / name).exists():
+                raise ValueError('Local service override requires review before updating: ' + name)
+        if not (root / 'usr/libexec/vim4-update').is_file():
+            raise ValueError('Update is missing platform helpers')
+        apply_update(package, root)
+
+
+if __name__ == '__main__':
+    try:
+        if len(sys.argv) != 2:
+            raise ValueError('Expected a package path')
+        lock = os.open('/run/lock/vim4-update.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(lock, 'w') as handle:
+            if os.fstat(handle.fileno()).st_uid != 0:
+                raise ValueError('Invalid lock owner')
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            install(sys.argv[1])
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(1)

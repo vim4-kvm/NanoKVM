@@ -12,6 +12,7 @@ type H264Frame struct {
 	Result    int
 	Duration  time.Duration
 	Timestamp int64
+	HasPTS    bool
 }
 
 type H264Subscription struct {
@@ -20,17 +21,23 @@ type H264Subscription struct {
 	closed             atomic.Bool
 	once               sync.Once
 	waitingForKeyframe bool
+	source             *H264Source
 }
 
 type H264Source struct {
 	mutex       sync.Mutex
 	subscribers map[*H264Subscription]struct{}
 	running     bool
+	h265        bool
 }
 
 var defaultH264Source = &H264Source{
 	subscribers: make(map[*H264Subscription]struct{}),
 }
+
+var defaultH265Source = &H264Source{subscribers: make(map[*H264Subscription]struct{}), h265: true}
+
+func SubscribeH265() *H264Subscription { return defaultH265Source.subscribe() }
 
 func SubscribeH264() *H264Subscription {
 	return defaultH264Source.subscribe()
@@ -38,11 +45,15 @@ func SubscribeH264() *H264Subscription {
 
 func (s *H264Source) subscribe() *H264Subscription {
 	subscription := &H264Subscription{
-		frames: make(chan H264Frame, 4),
-		done:   make(chan struct{}),
+		frames:             make(chan H264Frame, 4),
+		done:               make(chan struct{}),
+		source:             s,
+		waitingForKeyframe: true,
 	}
 
 	s.mutex.Lock()
+	SelectVideo(s.h265)
+	RequestKeyframe()
 	s.subscribers[subscription] = struct{}{}
 	start := !s.running
 	if start {
@@ -70,7 +81,7 @@ func (s *H264Subscription) Close() {
 	s.once.Do(func() {
 		s.closed.Store(true)
 		close(s.done)
-		defaultH264Source.remove(s)
+		s.source.remove(s)
 	})
 }
 
@@ -89,17 +100,19 @@ func (s *H264Source) run() {
 
 	vision := common.GetKvmVision()
 	startTime := time.Now()
+	var clock captureClock
+	idle := true
 
-	for range ticker.C {
+	for {
+		if !capturePaced() || idle {
+			<-ticker.C
+		}
+		idle = true
 		subscribers := s.snapshot()
 		if len(subscribers) == 0 {
-			s.mutex.Lock()
-			if len(s.subscribers) == 0 {
-				s.running = false
-				s.mutex.Unlock()
+			if s.stopIfIdle() {
 				return
 			}
-			s.mutex.Unlock()
 			continue
 		}
 
@@ -108,7 +121,7 @@ func (s *H264Source) run() {
 			ticker.Reset(time.Second / time.Duration(fps))
 		}
 
-		data, result := vision.ReadH264(screen.Width, screen.Height, screen.BitRate)
+		data, result, pts, hasPTS := readVideo(vision, screen, s.h265)
 		if result < 0 {
 			frame := H264Frame{Result: result}
 			for _, subscription := range subscribers {
@@ -119,18 +132,38 @@ func (s *H264Source) run() {
 		if len(data) == 0 {
 			continue
 		}
+		idle = false
 
 		frame := H264Frame{
 			Data:      data,
 			Result:    result,
 			Duration:  time.Second / time.Duration(fps),
 			Timestamp: time.Since(startTime).Microseconds(),
+			HasPTS:    hasPTS,
+		}
+		if hasPTS {
+			frame.Timestamp = clock.at(pts).Microseconds()
 		}
 		for _, subscription := range subscribers {
-			subscription.send(frame)
+			if !subscription.send(frame) {
+				RequestKeyframe()
+			}
 		}
 		GetFrameRateCounter().Update()
 	}
+}
+
+// Serialize shutdown with subscribe: a replacement viewer either prevents the
+// stop or starts a fresh source after the previous capture has fully released.
+func (s *H264Source) stopIfIdle() bool {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	if len(s.subscribers) != 0 {
+		return false
+	}
+	stopVideo(s.h265)
+	s.running = false
+	return true
 }
 
 func (s *H264Source) snapshot() []*H264Subscription {
@@ -148,8 +181,8 @@ func (s *H264Subscription) send(frame H264Frame) bool {
 	if s.closed.Load() {
 		return false
 	}
-	if s.waitingForKeyframe {
-		if frame.Result != 3 {
+	if s.waitingForKeyframe && frame.Result >= 0 {
+		if !frame.IsKeyframe() {
 			return false
 		}
 		s.waitingForKeyframe = false
@@ -170,10 +203,12 @@ func (s *H264Subscription) send(frame H264Frame) bool {
 			return false
 		default:
 			s.waitingForKeyframe = true
-			if frame.Result != 3 {
+			if !frame.IsKeyframe() && frame.Result >= 0 {
 				return false
 			}
-			s.waitingForKeyframe = false
+			if frame.IsKeyframe() {
+				s.waitingForKeyframe = false
+			}
 			select {
 			case s.frames <- frame:
 				return true
@@ -182,4 +217,25 @@ func (s *H264Subscription) send(frame H264Frame) bool {
 			}
 		}
 	}
+}
+
+func (f H264Frame) IsKeyframe() bool { return f.Result == 3 || f.Result == 7 }
+
+// Restarted capture pipelines reset PTS. Preserve a monotonic media timeline
+// for connected decoders and Direct flow-control acknowledgements.
+type captureClock struct {
+	started                     bool
+	base, offset, last, lastPTS time.Duration
+}
+
+func (c *captureClock) at(pts time.Duration) time.Duration {
+	if !c.started || pts < c.lastPTS {
+		if c.started {
+			c.offset = c.last + time.Second/60
+		}
+		c.base, c.started = pts, true
+	}
+	c.lastPTS = pts
+	c.last = c.offset + pts - c.base
+	return c.last
 }

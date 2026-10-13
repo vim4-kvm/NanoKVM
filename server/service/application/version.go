@@ -37,7 +37,7 @@ const (
 
 var (
 	latestClient       = utils.NewUpdateHTTPClient(15 * time.Second)
-	packageNamePattern = regexp.MustCompile(`^nanokvm_[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz$`)
+	packageNamePattern = regexp.MustCompile(packagePattern)
 	versionPattern     = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`)
 )
 
@@ -56,6 +56,10 @@ func (s *Service) GetVersion(c *gin.Context) {
 
 	// latest version
 	latestVersion := ""
+	if base, err := resolveUpdateBaseURL(); err == nil && base == "" {
+		rsp.OkRspWithData(c, &proto.GetVersionRsp{Current: currentVersion, Latest: currentVersion})
+		return
+	}
 	latest, err := getLatest()
 	if err != nil {
 		log.Errorf("failed to get latest version: %s", err)
@@ -75,8 +79,11 @@ func getLatest() (*Latest, error) {
 	if err != nil {
 		return nil, err
 	}
+	if baseURL == "" {
+		return nil, errors.New("configure a VIM4 update server first")
+	}
 
-	manifestURL, err := joinUpdateURL(baseURL, "latest.json")
+	manifestURL, err := joinUpdateURL(baseURL, latestManifestName)
 	if err != nil {
 		return nil, err
 	}

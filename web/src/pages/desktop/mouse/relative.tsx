@@ -4,10 +4,11 @@ import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 
 import { MouseReportRelative } from '@/lib/mouse.ts';
-import { client, MessageEvent } from '@/lib/websocket.ts';
+import { inverseRotateDelta } from '@/lib/video-transform';
 import { scrollDirectionAtom, scrollIntervalAtom } from '@/jotai/mouse.ts';
-import { resolutionAtom } from '@/jotai/screen.ts';
+import { resolutionAtom, videoRotationAtom } from '@/jotai/screen.ts';
 
+import { registerMouseReleaseHandler, sendMouseRelease, sendMouseReport } from './lifecycle';
 import { MouseRelativeEvent } from './types.ts';
 
 export const Relative = () => {
@@ -15,6 +16,7 @@ export const Relative = () => {
   const [messageApi, contextHolder] = message.useMessage();
 
   const resolution = useAtomValue(resolutionAtom);
+  const rotation = useAtomValue(videoRotationAtom);
   const scrollDirection = useAtomValue(scrollDirectionAtom);
   const scrollInterval = useAtomValue(scrollIntervalAtom);
 
@@ -35,6 +37,7 @@ export const Relative = () => {
   const lastTapPosRef = useRef({ x: 0, y: 0 });
   const isDoubleTapCandidateRef = useRef(false);
   const doubleTapDragArmedUntilRef = useRef(0);
+  const touchCanceledRef = useRef(false);
 
   const TAP_THRESHOLD = 8;
   const DRAG_THRESHOLD = 10;
@@ -48,6 +51,21 @@ export const Relative = () => {
     if (!screen) return;
     const target = screen;
     const mouse = mouseRef.current;
+    const unregister = registerMouseReleaseHandler(releaseInput);
+    window.addEventListener('blur', releaseInput);
+    window.addEventListener('mouseup', releaseInput);
+    document.addEventListener('visibilitychange', releaseHidden);
+    function releaseInput() {
+      clearTouchLongPressTimer();
+      resetTouchState();
+      touchCanceledRef.current = true;
+      isDoubleTapCandidateRef.current = false;
+      doubleTapDragArmedUntilRef.current = 0;
+      sendMouseRelease('relative', mouse.reset());
+    }
+    function releaseHidden() {
+      if (document.hidden) releaseInput();
+    }
 
     showMessage();
 
@@ -98,6 +116,7 @@ export const Relative = () => {
     // Mouse move event
     function handleMouseMove(e: any) {
       disableEvent(e);
+      if (!isLockedRef.current) return;
 
       const x = e.movementX || e.mozMovementX || e.webkitMovementX || 0;
       const y = e.movementY || e.mozMovementY || e.webkitMovementY || 0;
@@ -112,6 +131,8 @@ export const Relative = () => {
     // Touch start event
     function handleTouchStart(e: TouchEvent) {
       disableEvent(e);
+      if (e.touches.length === e.changedTouches.length) touchCanceledRef.current = false;
+      if (touchCanceledRef.current) return;
 
       if (e.touches.length === 0) {
         return;
@@ -171,6 +192,7 @@ export const Relative = () => {
     // Touch move event
     function handleTouchMove(e: TouchEvent) {
       disableEvent(e);
+      if (touchCanceledRef.current) return;
 
       if (e.touches.length === 0) {
         return;
@@ -244,6 +266,7 @@ export const Relative = () => {
     // Touch end event
     function handleTouchEnd(e: TouchEvent) {
       disableEvent(e);
+      if (touchCanceledRef.current) return;
       lastTouchEndTimeRef.current = Date.now();
 
       if (e.touches.length > 0) {
@@ -282,6 +305,7 @@ export const Relative = () => {
     // Touch cancel event
     function handleTouchCancel(e: TouchEvent) {
       disableEvent(e);
+      touchCanceledRef.current = true;
       clearTouchLongPressTimer();
 
       releasePressedTouchButton();
@@ -310,11 +334,15 @@ export const Relative = () => {
 
     function handlePointerLockChange() {
       isLockedRef.current = document.pointerLockElement === target;
+      if (!isLockedRef.current) releaseInput();
     }
 
     return () => {
-      const release = mouse.reset();
-      client.send(new Uint8Array([MessageEvent.Mouse, ...release]));
+      unregister();
+      releaseInput();
+      window.removeEventListener('blur', releaseInput);
+      window.removeEventListener('mouseup', releaseInput);
+      document.removeEventListener('visibilitychange', releaseHidden);
       target.removeEventListener('click', handleMouseClick);
       target.removeEventListener('mousemove', handleMouseMove);
       target.removeEventListener('mousedown', handleMouseDown);
@@ -328,7 +356,7 @@ export const Relative = () => {
       target.removeEventListener('touchcancel', handleTouchCancel, touchOptions.capture);
       clearTouchLongPressTimer();
     };
-  }, [resolution, scrollDirection, scrollInterval]);
+  }, [resolution, rotation, scrollDirection, scrollInterval]);
 
   // Mouse handler
   function handleMouseEvent(event: MouseRelativeEvent) {
@@ -348,15 +376,21 @@ export const Relative = () => {
         report = mouse.buildReport(0, 0, event.deltaY);
         break;
       case 'move':
-        report = mouse.buildReport(event.deltaX, event.deltaY);
+        const delta = inverseRotateDelta(event.deltaX, event.deltaY, rotation);
+        report = mouse.buildReport(delta.x, delta.y);
         break;
       default:
         report = mouse.buildReport(0, 0);
         break;
     }
 
-    const data = new Uint8Array([MessageEvent.Mouse, ...report]);
-    client.send(data);
+    if (!sendMouseReport('relative', report)) {
+      clearTouchLongPressTimer();
+      resetTouchState();
+      touchCanceledRef.current = true;
+      doubleTapDragArmedUntilRef.current = 0;
+      sendMouseRelease('relative', mouse.reset());
+    }
   }
 
   // show message

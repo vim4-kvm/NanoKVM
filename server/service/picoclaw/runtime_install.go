@@ -22,6 +22,8 @@ func (s *Service) installRuntime() (string, *PicoclawError) {
 	if s == nil {
 		return "", newPicoclawError(CodeRuntimeUnavailable, "picoclaw service is unavailable")
 	}
+	unlock := s.lockRuntimeLifecycle()
+	defer unlock()
 	s.ensureDependencies()
 	log.Debugf("picoclaw install: start, binary=%s, cache=%s", picoclawBinaryPath, picoclawCacheDir)
 
@@ -184,6 +186,9 @@ func downloadPicoclawArchive(ctx context.Context, destination string, onProgress
 }
 
 func downloadPicoclawChecksum(ctx context.Context) (string, error) {
+	if picoclawPinnedSHA512 != "" {
+		return picoclawPinnedSHA512, nil
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, picoclawChecksumURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create checksum request: %w", err)
@@ -415,6 +420,9 @@ func extractPicoclawBinary(archivePath string, destinationDir string) (string, e
 }
 
 func installPicoclawBinary(source string, destination string) error {
+	if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
+		return err
+	}
 	inFile, err := os.Open(source)
 	if err != nil {
 		return fmt.Errorf("failed to open extracted picoclaw binary: %w", err)

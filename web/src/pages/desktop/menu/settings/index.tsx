@@ -7,6 +7,7 @@ import {
   BadgeInfoIcon,
   BotIcon,
   CircleArrowUpIcon,
+  MonitorIcon,
   NetworkIcon,
   PaletteIcon,
   SettingsIcon,
@@ -18,11 +19,13 @@ import semver from 'semver';
 
 import * as api from '@/api/application.ts';
 import * as ls from '@/lib/localstorage.ts';
+import { isVIM4 } from '@/lib/platform';
 import { keyboardLockAtom } from '@/jotai/keyboard.ts';
 import { submenuOpenCountAtom } from '@/jotai/settings.ts';
 import { Tailscale as TailscaleIcon } from '@/components/icons/tailscale';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+import { VideoSettings } from '../vim4/settings';
 import { About } from './about';
 import { Account } from './account';
 import { Appearance } from './appearance';
@@ -52,6 +55,9 @@ export const Settings = () => {
     ...(isAdmin
       ? [
           { id: 'device', icon: <SmartphoneIcon size={16} />, component: <Device /> },
+          ...(isVIM4
+            ? [{ id: 'screen', icon: <MonitorIcon size={16} />, component: <VideoSettings /> }]
+            : []),
           { id: 'network', icon: <NetworkIcon size={16} />, component: <Network /> },
           { id: 'mcp', icon: <BotIcon size={16} />, component: <MCP /> },
           {

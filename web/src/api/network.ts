@@ -1,5 +1,9 @@
 import { http } from '@/lib/http.ts';
 
+export const getStaticIp = () => http.get('/api/network/static-ip');
+export const setStaticIP = (enabled: boolean, ip: string) =>
+  http.post('/api/network/static-ip', { enabled, ip });
+
 export type DNSMode = 'manual' | 'dhcp';
 
 // wake on lan

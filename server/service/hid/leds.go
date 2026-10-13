@@ -124,15 +124,21 @@ func (h *Hid) readKeyboardLeds() {
 	buf := make([]byte, 64)
 
 	for {
-		file, notifierFD := h.keyboardLedReaderHandles()
+		h.kbMutex.Lock()
+		file, notifierFD := h.g0Reader, h.ledReaderNotifyReadFD
+		h.ledPollMutex.Lock()
+		h.kbMutex.Unlock()
 		if file == nil {
-			if err := waitForKeyboardLedReaderChange(notifierFD); err != nil {
+			err := waitForKeyboardLedReaderChange(notifierFD)
+			h.ledPollMutex.Unlock()
+			if err != nil {
 				log.Debugf("wait for keyboard LED reader failed: %s", err)
 			}
 			continue
 		}
 
 		changed, err := waitForKeyboardLedReportOrChange(file, notifierFD)
+		h.ledPollMutex.Unlock()
 		if err != nil {
 			if !errors.Is(err, os.ErrClosed) {
 				log.Debugf("wait for keyboard LED report failed: %s", err)
@@ -144,7 +150,16 @@ func (h *Hid) readKeyboardLeds() {
 			continue
 		}
 
-		n, err := file.Read(buf)
+		h.kbMutex.Lock()
+		if h.g0Reader != file {
+			h.kbMutex.Unlock()
+			continue
+		}
+		n, err := unix.Read(int(file.Fd()), buf)
+		h.kbMutex.Unlock()
+		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EINTR) {
+			continue
+		}
 		if n > 0 {
 			// Both keyboard gadget descriptors in kvmapp/system/init.d declare
 			// boot-keyboard reports without a Report ID (no 0x85 item). Their LED

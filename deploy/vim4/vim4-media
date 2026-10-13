@@ -1,0 +1,133 @@
+#!/usr/bin/python3
+"""Switch image media, the USB microphone and NCM while retaining HID functions and the PD contract."""
+import fcntl
+import os
+from pathlib import Path
+import stat
+import sys
+import time
+
+IMAGES = Path('/var/lib/vim4-kvm/images')
+GADGET = Path('/sys/kernel/config/usb_gadget/kvm')
+LUN = GADGET / 'functions/mass_storage.disk0/lun.0'
+
+
+def image_fd(name, writable):
+    path = Path(name)
+    if path.parent != IMAGES or path.suffix.lower() not in ('.iso', '.img'):
+        raise ValueError('Image must be a file in the configured image directory')
+    directory = os.open(IMAGES, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        fd = os.open(path.name, (os.O_RDWR if writable else os.O_RDONLY) | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+    finally:
+        os.close(directory)
+    info = os.fstat(fd)
+    if not stat.S_ISREG(info.st_mode) or info.st_size < 512:
+        os.close(fd)
+        raise ValueError('Image must be a regular file of at least 512 bytes')
+    return fd
+
+
+FUNCTIONS = ('ncm.usb0', 'mass_storage.disk0', 'uac2.usb0')
+
+
+def desired_links(mounted, microphone):
+    # NCM plus three HID functions already uses five IN endpoints; a sixth
+    # fails CRG CONFIG_EP on this board, so NCM yields to media or microphone.
+    links = (['mass_storage.disk0'] if mounted else []) + (['uac2.usb0'] if microphone else [])
+    return links or ['ncm.usb0']
+
+
+def relink(links, prepare=lambda: None, restore=lambda: None):
+    """Re-enumerate with exactly the given switchable functions linked."""
+    config = GADGET / 'configs/c.1'
+    udc = GADGET / 'UDC'
+    controller = udc.read_text().strip()
+    old_links = [name for name in FUNCTIONS if (config / name).is_symlink()]
+    if controller:
+        udc.write_text('\n')
+        # Allow the host to observe removal before presenting new interfaces.
+        time.sleep(0.5)
+    try:
+        for name in FUNCTIONS:
+            (config / name).unlink(missing_ok=True)
+        # The function and device nodes remain alive. Only enumeration changes.
+        prepare()
+        for name in links:
+            (config / name).symlink_to(GADGET / 'functions' / name)
+    except Exception:
+        for name in FUNCTIONS:
+            (config / name).unlink(missing_ok=True)
+        restore()
+        for name in old_links:
+            (config / name).symlink_to(GADGET / 'functions' / name)
+        raise
+    finally:
+        if controller:
+            udc.write_text(controller)
+
+
+def configure(fd, cdrom, readonly):
+    if not LUN.is_dir():
+        raise RuntimeError('Virtual media gadget is not installed')
+    old = {key: (LUN / key).read_text().strip() for key in ('file', 'cdrom', 'ro')}
+    microphone = (GADGET / 'configs/c.1/uac2.usb0').is_symlink()
+
+    def prepare():
+        (LUN / 'file').write_text('\n')
+        (LUN / 'cdrom').write_text('1' if cdrom else '0')
+        (LUN / 'ro').write_text('1' if readonly else '0')
+        if fd is not None:
+            # Passing the already-validated descriptor prevents a path swap
+            # between checking an image and the kernel opening its backing file.
+            (LUN / 'file').write_text(f'/proc/self/fd/{fd}')
+
+    def restore():
+        (LUN / 'file').write_text('\n')
+        for key in ('cdrom', 'ro', 'file'):
+            (LUN / key).write_text(old[key] or '\n')
+
+    relink(desired_links(fd is not None, microphone), prepare, restore)
+
+
+def set_microphone(enabled):
+    if not (GADGET / 'functions/uac2.usb0').is_dir():
+        raise RuntimeError('USB microphone gadget is not installed')
+    mounted = LUN.is_dir() and bool((LUN / 'file').read_text().strip())
+    relink(desired_links(mounted, enabled))
+
+
+def main(args):
+    fd = None
+    microphone = None
+    if args == ['eject']:
+        cdrom, readonly = False, True
+    elif len(args) == 2 and args[0] == 'microphone' and args[1] in ('on', 'off'):
+        microphone = args[1] == 'on'
+    elif len(args) == 4 and args[0] == 'mount' and all(x in ('true', 'false') for x in args[2:]):
+        cdrom = args[2] == 'true'
+        readonly = cdrom or args[3] == 'true'
+        fd = image_fd(args[1], not readonly)
+    else:
+        raise ValueError('Usage: vim4-media eject | mount IMAGE CDROM READONLY | microphone on|off')
+    try:
+        lock = os.open('/run/lock/vim4-media.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(lock, 'r+') as handle:
+            if os.fstat(handle.fileno()).st_uid != 0:
+                raise RuntimeError('Invalid media lock owner')
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            if microphone is None:
+                configure(fd, cdrom, readonly)
+            else:
+                set_microphone(microphone)
+    finally:
+        if fd is not None:
+            os.close(fd)
+
+
+if __name__ == '__main__':
+    try:
+        main(sys.argv[1:])
+    except (OSError, ValueError, RuntimeError) as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(1)

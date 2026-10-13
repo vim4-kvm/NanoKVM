@@ -6,14 +6,12 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
-	"time"
 
 	"NanoKVM-Server/common"
 	"NanoKVM-Server/config"
 	"NanoKVM-Server/logger"
 	"NanoKVM-Server/middleware"
 	"NanoKVM-Server/router"
-	"NanoKVM-Server/service/vm"
 	"NanoKVM-Server/service/vm/jiggler"
 	"NanoKVM-Server/utils"
 
@@ -38,13 +36,7 @@ func initialize() {
 	// init screen parameters
 	_ = common.GetScreen()
 
-	// init HDMI
-	vm.DisableHdmiCapture()
-	time.Sleep(10 * time.Millisecond)
-	if !utils.IsHdmiDisabled() {
-		vm.EnableHdmiCapture()
-	}
-	vm.SetHdmiViewerCount(0)
+	initializeHDMI()
 
 	// run mouse jiggler
 	jiggler.GetJiggler().Run()

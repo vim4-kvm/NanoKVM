@@ -144,6 +144,9 @@ func (s *Service) RecoverUSB(c *gin.Context) {
 }
 
 func ResetUSBPHY() error {
+	if handled, err := resetPlatformUSB(); handled {
+		return err
+	}
 	h := GetHid()
 	h.Lock()
 	h.CloseNoLock()

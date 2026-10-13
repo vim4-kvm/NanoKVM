@@ -19,10 +19,12 @@ export function getQualityMap(videoMode: string) {
   if (videoMode === 'direct' || videoMode === 'h264') {
     return BitRateMap;
   }
+  if (videoMode === 'h265' || videoMode === 'h265-direct') return BitRateMap;
   return null;
 }
 
 export function getScreenType(videoMode: string) {
+  if (videoMode === 'h265' || videoMode === 'h265-direct') return 2;
   if (videoMode === 'mjpeg') {
     return 0;
   }

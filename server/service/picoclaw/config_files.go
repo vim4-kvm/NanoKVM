@@ -130,6 +130,9 @@ func resolvePicoclawHome() (string, error) {
 		return home, nil
 	}
 
+	if picoclawPlatformHome != "" {
+		return picoclawPlatformHome, nil
+	}
 	currentUser, err := user.Current()
 	if err == nil && currentUser.HomeDir != "" {
 		return filepath.Join(currentUser.HomeDir, ".picoclaw"), nil

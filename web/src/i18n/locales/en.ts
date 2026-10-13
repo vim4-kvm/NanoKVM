@@ -128,7 +128,21 @@ const en = {
         videoError: 'Video display error',
         noHdmi: 'No HDMI signal detected',
         unavailable: 'Screen cannot be displayed right now'
-      }
+      },
+      vim4: {
+        resolution: 'Capture resolution',
+        frameRateLimit: 'Up to {{fps}} FPS',
+        resolutionHint:
+          'Changes capture output, not HDMI input. Actual frame rate depends on the source, FPS setting and video mode.',
+        mjpegLimit:
+          'MJPEG is limited to 10 fps; actual speed depends on resolution. Settings affect all viewers.'
+      },
+      qualityAuto: 'Automatic',
+      rotation: 'Rotation',
+      noSignal: 'HDMI no signal',
+      inconsistentVideoMode: 'Play paused. Another video mode is playing.',
+      upload: 'Upload',
+      advanced: 'Advanced'
     },
     keyboard: {
       title: 'Keyboard',
@@ -250,7 +264,19 @@ const en = {
         tf3: 'Insert the TF card into a card reader and connect it to your computer.',
         tf4: 'Copy the image file to the /data directory on the TF card.',
         tf5: 'Insert the TF card into the NanoKVM.'
-      }
+      },
+      usbNetworkNotice:
+        'Mounting an image temporarily disconnects USB networking. Eject it to restore USB networking. Use Ethernet or Wi-Fi to manage the KVM.',
+      upload: 'Upload Image',
+      uploaded: 'Image Uploaded',
+      mount: 'Mount Image',
+      mounted: 'Mounted',
+      fetchError: 'Failed to fetch image list, please refresh and try again',
+      uploadError: 'Upload failed, please try again',
+      readOnly: 'Read only',
+      checksum: 'Checksum',
+      checksumFailed: 'Checksum calculation failed, please try again',
+      download: 'Download Image'
     },
     script: {
       title: 'Scripts',
@@ -282,7 +308,9 @@ const en = {
       flowControlHard: 'Hard',
       dataBits: 'Data bits',
       stopBits: 'Stop bits',
-      confirm: 'Ok'
+      confirm: 'Ok',
+      unconfigured:
+        'No external serial port is configured. Enter the device path after connecting an adapter.'
     },
     wol: {
       title: 'Wake-on-LAN',
@@ -360,6 +388,15 @@ const en = {
           Wired: 'Wired',
           Wireless: 'Wireless',
           Other: 'Other'
+        },
+        arch: 'Arch',
+        device_number: 'Device Number',
+        pikvm: {
+          title: 'Switch to PiKVM',
+          attention: 'Attention',
+          desc1: 'Are you sure you want to switch the current system to PiKVM?',
+          desc2: 'The device will automatically reboot after switching systems.',
+          confirm: 'Confirm'
         }
       },
       appearance: {
@@ -462,7 +499,101 @@ const en = {
         reboot: 'Reboot',
         rebootDesc: 'Are you sure you want to reboot NanoKVM?',
         okBtn: 'Yes',
-        cancelBtn: 'No'
+        cancelBtn: 'No',
+        scheduledScreenOff: {
+          title: 'Scheduled Screen Off',
+          description: 'Turn the Desk screen off during a time range',
+          start: 'Start',
+          end: 'End',
+          invalidRange: 'Start and end times must be different.',
+          saveFailed: 'Unable to save the scheduled screen-off settings.'
+        },
+        displayPolicy: {
+          title: 'Desk screen',
+          description: 'Choose what the built-in screen shows while idle',
+          modes: {
+            alwaysOn: 'Always on',
+            idleClock: 'Show clock when idle',
+            idleOff: 'Turn off when idle'
+          },
+          saveFailed: 'Unable to save the screen display setting.'
+        },
+        wifi: {
+          title: 'Wi-Fi',
+          description: 'Configure Wi-Fi',
+          apMode: 'AP mode is enabled, connect to Wi-Fi manually',
+          others: 'Others...',
+          connect: 'Join Wi-Fi',
+          connectDesc1: 'Please enter the network ssid and password',
+          connectDesc2: 'Please enter the password to join this network',
+          disconnect: 'Are you sure to disconnect the network?',
+          ssid: 'Name',
+          password: 'Password',
+          joinBtn: 'Join',
+          confirmBtn: 'Ok',
+          cancelBtn: 'Cancel'
+        },
+        led: {
+          title: 'LED Strip',
+          description: 'Configure LED strip',
+          horizontal: 'Number of horizontal beads',
+          vertical: 'Number of vertical beads',
+          brightness: 'LED brightness',
+          restart: 'Turn the LED strip off and on to apply the new configuration.'
+        },
+        passthrough: {
+          title: 'HDMI Passthrough',
+          description: 'Enable HDMI passthrough',
+          tip: 'Enabling HDMI capture limits passthrough to 4K30. Disable HDMI capture to achieve 4K60 passthrough.'
+        },
+        capture: {
+          title: 'HDMI',
+          description: 'Enable HDMI output/capture',
+          tip: 'Enabling HDMI passthrough limits the output frame rate to standard 4K30. Disable passthrough to support non-standard rates like 4K40. (Monitor compatibility may vary).'
+        },
+        staticIp: {
+          title: 'Static IP',
+          config: 'Config',
+          tip: 'To prevent connection loss, it is recommended to configure while you have physical access to the device.',
+          document: 'Check the document.',
+          enable: 'Enable static IP',
+          placeholder: 'Format: IP/CIDR [Gateway]\nExample: 192.168.1.10/24',
+          notEmpty: 'IP address cannot be empty.',
+          notValid: 'IP address format is invalid.',
+          failed: 'Configuration failed.',
+          success: 'Configuration complete. Please check if the IP address is available.',
+          okBtn: 'Ok',
+          cancelBtn: 'Cancel'
+        },
+        lowPower: {
+          title: 'Low Power Mode',
+          tips: 'Tips',
+          tip1: 'When enabled, HDMI output will be automatically turned off during idle periods to reduce power consumption and heat.',
+          tip2: 'However, waking up HDMI requires re-initialization. You may experience a HDMI No Signal state for approximately 10 seconds.',
+          okBtn: 'Ok',
+          cancelBtn: 'Cancel'
+        },
+        imageMounted: 'Image Mounted',
+        imageMountedDesc: 'Operating the virtual devices will unmount the current image',
+        emmc: {
+          warning: 'Warning',
+          tip1: "Mounting the eMMC for the first time will wipe all data in the NanoKVM's /data directory. Please ensure you have a backup before proceeding.",
+          tip2: 'Do you want to continue?'
+        },
+        mic: 'Virtual Mic',
+        micDesc: 'Mount virtual microphone on the remote host',
+        micTip:
+          'Due to USB endpoint limitations, enabling the Virtual Mic will disable the USB Secondary Screen.\n' +
+          'And it is recommended to disable this feature during BIOS operations to ensure optimal compatibility.',
+        datetime: {
+          timezone: 'Time zone',
+          datetime: 'Datetime',
+          format: 'Time format',
+          synchronize: 'Synchronize time',
+          lastSynchronization: 'Last synchronization: ',
+          notSynchronized: 'The system time is not synchronized yet',
+          syncNow: 'Sync now'
+        }
       },
       network: {
         title: 'Network',
@@ -590,6 +721,59 @@ const en = {
           checksumMismatch: 'SHA-256 verification failed. The package may be corrupted.',
           invalidName: 'Invalid filename format. Please download from GitHub releases.',
           updateFailed: 'Update failed. Please retry.'
+        },
+        vim4Notice:
+          'Accepts VIM4 application bundles only. Upload a bundle or configure your update server. No public VIM4 update source is configured.',
+        vim4Source: 'Root URL of your VIM4 application update server.',
+        vim4Manual: 'Upload a VIM4 application update bundle.',
+        vim4Reset: 'Clear Update Source',
+        vim4ResetDesc: 'Clear the custom update server. Manual uploads remain available.',
+        upgrade_tip_nano:
+          'A new version of nanokvm is available. Are you sure you want to update now?',
+        upgrade_tip_firmware:
+          'A new firmware version is available. Are you sure you want to update now?',
+        download: 'Download',
+        install: 'Install',
+        changelog: 'Changelog',
+        restart: 'Restart',
+        source: {
+          title: 'Update Server',
+          desc: 'Set one root URL for both application and system-firmware updates.',
+          loadFailed: 'Failed to load the update server configuration.',
+          saveFailed: 'Failed to save the update server.',
+          resetFailed: 'Failed to restore the official update server.',
+          saved: 'Update server saved.',
+          resetDone: 'Official update server restored.',
+          invalidUrl:
+            'Enter an HTTP(S) update server root without URL credentials or a manifest URL.',
+          save: 'Save',
+          reset: 'Restore Official Source',
+          confirmTitle: 'Use a custom update server?',
+          confirmDesc:
+            'This server controls the application and system-firmware update metadata used by this device. Only continue if you trust its operator.',
+          confirm: 'Use Custom Server',
+          resetConfirmTitle: 'Restore the official update server?',
+          resetConfirmDesc: 'Future update checks will use the official NanoKVM-Pro source again.',
+          resetConfirm: 'Restore Official Source',
+          httpWarning:
+            'HTTP does not protect update traffic in transit. You must also trust every network between this device and the update server.',
+          ready: 'Update source changed. Check for application updates when ready.',
+          previewDisabled: 'Preview Updates are unavailable while a custom update server is active.'
+        },
+        manual: {
+          title: 'Manual Update',
+          desc: 'Upload an application or supported system-firmware package.',
+          upload: 'Upload Package',
+          inspectFailed: 'Failed to inspect the update package.',
+          installFailed: 'Failed to start the update installation.',
+          confirmTitle: 'Install update package?',
+          confirmDesc:
+            'The package was staged and inspected. Review its contents and risks before installation.',
+          install: 'Install Update',
+          version: 'Target version: {{version}}',
+          size: 'Package size: {{size}}',
+          finished: 'The update completed successfully.',
+          refresh: 'Refresh Page'
         }
       },
       account: {
@@ -621,7 +805,73 @@ const en = {
           loadFailed: 'Failed to load users',
           saveFailed: 'Failed to save user',
           deleteFailed: 'Failed to delete user'
+        },
+        vim4Notice:
+          'This web account is separate from Ubuntu and SSH. Login enforcement follows the server authentication setting; changing this password does not enable login by itself.'
+      },
+      screen: {
+        title: 'Screen',
+        videoMode: {
+          title: 'Video Mode',
+          description: 'Select the encoding and transmission method'
+        },
+        edid: {
+          description: 'Select display parameters',
+          default: 'Default',
+          custom: 'Custom',
+          document: 'Document'
+        },
+        rateControlMode: {
+          title: 'Rate Control Mode',
+          description: 'Select the method to control the bitrate',
+          cbr: 'CBR (Constant Bitrate): Prioritizes connection stability. Minimizes stuttering, but image quality may drop during high-motion scenes.',
+          vbr: 'VBR (Variable Bitrate): Prioritizes image clarity. High-motion scenes may cause bandwidth spikes, potentially leading to latency or stutter.'
+        },
+        bitrate: {
+          title: 'Bitrate',
+          description: 'Balance image clarity with bandwidth usage',
+          lower:
+            'Lower values reduce latency on poor networks but compromise image quality, potentially causing blur or artifacts.',
+          higher:
+            'Higher values improve image clarity but consume more bandwidth. May increase latency if the connection is slow.'
+        },
+        gop: {
+          description: 'Set the interval between full keyframes',
+          lower:
+            'Lower values send full frames more frequently. This speeds up recovery from visual artifacts but consumes more bandwidth and reduces image detail.',
+          higher:
+            'Higher values optimize for incremental updates. This improves image detail and saves bandwidth, but recovery from visual artifacts will take longer.'
+        },
+        quality: {
+          title: 'Quality',
+          description: 'Set the display image quality'
+        },
+        fps: {
+          auto: 'Auto',
+          description: 'Set the display frame rate',
+          tip1: "Setting the value to 0 enables Auto mode, synchronizing the display with the remote host's frame rate.",
+          tip2: 'Lowering the frame rate significantly reduces bandwidth usage. Manually decrease it during network instability or when high frame rates are not required.'
+        },
+        scale: {
+          title: 'Scale',
+          description: 'Set the display scaling ratio'
         }
+      },
+      kvmadmin: {
+        title: 'NanoKVM Admin',
+        description: 'Batch management of NanoKVM devices',
+        tip: 'This feature uses the mDNS protocol. Please make sure the mDNS is enabled on your device.',
+        install: 'Install',
+        start: 'Run',
+        visit: 'Open',
+        uninstall: 'Uninstall',
+        attention: 'Attention',
+        confirmUninstall: 'Are you sure to uninstall NanoKVM Admin?',
+        clearData: 'This operation will delete all saved data!',
+        installFailed: 'Install failed. Please try again.',
+        startFailed: 'Service startup failed. Please try again.',
+        okBtn: 'Yes',
+        cancelBtn: 'No'
       }
     },
     picoclaw: {
@@ -798,6 +1048,49 @@ const en = {
     menu: {
       collapse: 'Collapse Menu',
       expand: 'Expand Menu'
+    },
+    assistant: {
+      title: 'Smart Assistant',
+      tips: {
+        intro:
+          'Smart Assistant is an experimental feature of NanoKVM that allows you to experience using a Vision-Language Model (VLM) for automated computer operations, often called "Computer Use."\nBefore using this feature, please set the video mode to MJPEG transfer and your screen resolution to 720p or lower.\nThe Smart Assistant currently relies on an external VLM model service, which requires you to provide the corresponding model server address and API key. \nThis means the model server you specify will receive screenshots of your computer screen, and you may incur related token fees. \nYou can also set up your own VLM model server on your local network to avoid these issues.',
+        content:
+          "Large models still have an unpredictable risk of hallucinations and limited operational capabilities, which may lead to unintended actions that could damage your computer's data. You must be aware of this risk. While the Smart Assistant is operating, you must monitor its actions and be ready to interrupt any potentially risky operations at any time!\nClicking the button below will open the Smart Assistant in a new window, and by doing so, you acknowledge and accept the risks mentioned above.\nFor security reasons, this service is currently limited to a single user. It automatically shutdown service when the page is closed, requiring you to click the button again to start a new session.",
+        contribute:
+          'The code has been open-sourced, so feel free to review it. Contributions are also welcome!',
+        warning: 'Warning'
+      },
+      install: 'Install Dependencies',
+      tryNow: 'Try It Now'
+    },
+    notification: {
+      browser: {
+        title: 'Browser Recommendation',
+        description:
+          'For the best user experience, we recommend using the Chrome browser. While we strive for compatibility across all major browsers, some advanced features may not work as intended outside of Chrome.'
+      },
+      h265: {
+        title: 'Warning',
+        description:
+          "The device's factory-installed firmware is strictly provisioned without H.265/HEVC video encoding or decoding functionality.\n\n" +
+          'Any user-initiated modification of the firmware, manual installation of third-party H.265 modules, or independent development of HEVC features constitutes an assumption of all related risks by the end-user. These risks include, but are not limited to, patent licensing fees, legal liabilities, device compatibility issues, and performance degradation.\n\n' +
+          'The manufacturer expressly disclaims all responsibility for the operation, security, or legal compliance of any user-customized H.265 features.',
+        notSupported: 'The current browser does not support H.265!'
+      },
+      btnOk: 'OK'
+    },
+    volume: {
+      title: 'Volume'
+    },
+    microphone: {
+      title: 'Microphone',
+      notMounted: 'Microphone Not Mounted',
+      tip1: 'The virtual microphone is not mounted on the remote host. Would you like to mount and enable it now?',
+      tip2: 'You can also manage this later in "Settings > Device > Virtual Mic".',
+      confirm: 'Enable',
+      cancel: 'Cancel',
+      vim4Notice:
+        'Enabling the microphone briefly re-enumerates USB and disconnects USB networking until it is turned off. Use Ethernet or Wi-Fi to manage the KVM.'
     }
   }
 };

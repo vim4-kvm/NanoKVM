@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"NanoKVM-Server/common"
 	"fmt"
 	"os"
 	"sync"
@@ -31,6 +32,9 @@ func GetFrameRateCounter() *FrameRateCounter {
 			for range ticker.C {
 				currentCount := counter.frameCount.Swap(0)
 				counter.fps.Store(currentCount / 3)
+				if vision, ok := interface{}(common.GetKvmVision()).(interface{ SetActualFPS(int32) }); ok {
+					vision.SetActualFPS(counter.fps.Load())
+				}
 
 				data := fmt.Sprintf("%d", counter.fps.Load())
 				err := os.WriteFile("/kvmapp/kvm/now_fps", []byte(data), 0o666)

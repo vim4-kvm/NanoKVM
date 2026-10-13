@@ -14,14 +14,21 @@ import (
 const pongWait = 30 * time.Second
 
 var (
-	streamer = newStreamer()
-	upgrader = websocket.Upgrader{
+	streamer     = newStreamer()
+	h265Streamer = &Streamer{clients: make(map[*client]struct{}), h265: true}
+	upgrader     = websocket.Upgrader{
 		WriteBufferSize: 256 * 1024,
 		CheckOrigin:     middleware.CheckWebSocketOrigin,
 	}
 )
 
 func Connect(c *gin.Context) {
+	connect(c, streamer)
+}
+
+func ConnectH265(c *gin.Context) { connect(c, h265Streamer) }
+
+func connect(c *gin.Context, streamer *Streamer) {
 	ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Errorf("failed to upgrade to websocket: %s", err)
@@ -49,8 +56,10 @@ func Connect(c *gin.Context) {
 
 	streamer.addClient(client)
 
-	unregisterMode := stream.RegisterH264Mode(stream.H264ModeDirect)
-	defer unregisterMode()
+	if !streamer.h265 {
+		unregisterMode := stream.RegisterH264Mode(stream.H264ModeDirect)
+		defer unregisterMode()
+	}
 
 	for {
 		messageType, data, err := ws.ReadMessage()

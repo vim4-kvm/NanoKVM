@@ -1,0 +1,10 @@
+proto: http
+port:
+  http: 8080
+  https: 8443
+logger:
+  level: info
+  file: stdout
+# Local passwordless operation; Ubuntu account credentials are independent.
+authentication: disable
+stun: disable

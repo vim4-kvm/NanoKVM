@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"NanoKVM-Server/common"
 )
 
 func TestStopRuntimeProcessAndVerifyForceStopRunsStopBeforeChecking(t *testing.T) {
@@ -108,6 +110,7 @@ func TestStopRuntimeProcessAndVerifyReportsStopAndVerificationFailures(t *testin
 func TestStopRuntimeCloseSessionsDoesNotRequireHIDRelease(t *testing.T) {
 	t.Setenv("PICOCLAW_HOME", t.TempDir())
 	service := &Service{
+		vision:  &common.KvmVision{},
 		runtime: getRuntimeStore(),
 		releaseHID: func() error {
 			return errors.New("hid unavailable")
@@ -124,6 +127,7 @@ func TestStopRuntimeCloseSessionsReleasesStaleLock(t *testing.T) {
 	lock := &SessionLock{}
 	lock.ForceTakeover("stale-session")
 	service := &Service{
+		vision:  &common.KvmVision{},
 		lock:    lock,
 		runtime: getRuntimeStore(),
 	}
@@ -146,6 +150,7 @@ func TestPreemptControlLeasesForMCPDoesNotStopRuntimeOrChangeIntent(t *testing.T
 	lock := &SessionLock{}
 	lock.ForceTakeover("session-1")
 	service := &Service{
+		vision:        &common.KvmVision{},
 		lock:          lock,
 		runtime:       &RuntimeStore{status: RuntimeStatus{Ready: true, Status: "ready"}},
 		runtimeIntent: intentStore,
@@ -179,6 +184,7 @@ func TestStopRuntimeForMCPStopsRuntimeAndDisablesIntent(t *testing.T) {
 	}
 
 	service := &Service{
+		vision:        &common.KvmVision{},
 		runtime:       &RuntimeStore{status: RuntimeStatus{Ready: true, Status: "ready"}},
 		runtimeIntent: intentStore,
 	}
@@ -200,8 +206,15 @@ func TestStopRuntimeForMCPStopsRuntimeAndDisablesIntent(t *testing.T) {
 }
 
 func TestEnsureDependenciesInitializesRuntimeFields(t *testing.T) {
-	service := &Service{}
+	// Supply an inert vision dependency: this test exercises runtime wiring,
+	// not the appliance constructor, which initializes the physical encoder.
+	vision := &common.KvmVision{}
+	service := &Service{vision: vision}
 	service.ensureDependencies()
+
+	if service.vision != vision {
+		t.Fatal("injected vision dependency was replaced")
+	}
 
 	if service.config == nil {
 		t.Fatal("config store was not initialized")
@@ -224,10 +237,10 @@ func TestEnsureDependenciesInitializesRuntimeFields(t *testing.T) {
 }
 
 func TestIsPicoclawGatewayCmdlineOnlyMatchesGatewaySubcommand(t *testing.T) {
-	if !isPicoclawGatewayCmdline([]byte("/usr/bin/picoclaw\x00gateway\x00")) {
+	if !isPicoclawGatewayCmdline([]byte(picoclawBinaryPath + "\x00gateway\x00")) {
 		t.Fatal("gateway command was not recognized")
 	}
-	if isPicoclawGatewayCmdline([]byte("/usr/bin/picoclaw\x00agent\x00")) {
+	if isPicoclawGatewayCmdline([]byte(picoclawBinaryPath + "\x00agent\x00")) {
 		t.Fatal("agent command was recognized as gateway")
 	}
 	if isPicoclawGatewayCmdline([]byte("/usr/bin/other\x00gateway\x00")) {

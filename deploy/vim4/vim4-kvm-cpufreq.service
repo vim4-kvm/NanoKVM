@@ -1,0 +1,15 @@
+[Unit]
+Description=Keep VIM4 CPU clocks ready for 4K60 keyframe bursts
+# The BSP cpufrequtils script selects conservative at boot. That governor
+# stays near 500 MHz under steady 60 fps load, so each keyframe is
+# packetized and encrypted at low clock and arrives 40-100 ms late.
+After=cpufrequtils.service
+Before=nanokvm.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'for p in /sys/devices/system/cpu/cpufreq/policy*; do echo performance > "$p/scaling_governor"; done'
+
+[Install]
+WantedBy=multi-user.target

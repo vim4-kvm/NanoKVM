@@ -55,6 +55,7 @@ func GetScreen() *Screen {
 }
 
 func SetScreen(key string, value int) {
+	GetScreen()
 	switch key {
 	case "resolution":
 		height := uint16(value)
@@ -79,6 +80,10 @@ func SetScreen(key string, value int) {
 }
 
 func CheckScreen() {
+	GetScreen()
+	if checkPlatformScreen(screen) {
+		return
+	}
 	if _, ok := ResolutionMap[screen.Height]; !ok {
 		screen.Width = 1920
 		screen.Height = 1080

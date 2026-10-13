@@ -40,7 +40,8 @@ func NewClient(ws *websocket.Conn) *Client {
 		lastHeartbeat:     time.Time{},
 	}
 
-	client.hid.Open()
+	client.hid.Acquire()
+	client.hidAcquired = true
 
 	return client
 }
@@ -212,6 +213,11 @@ func (c *Client) Close() {
 	if c.manual != nil {
 		c.manual.Close()
 	}
+	c.releaseOnce.Do(func() {
+		if c.hidAcquired {
+			c.hid.Release()
+		}
+	})
 	log.Debug("websocket disconnected")
 }
 

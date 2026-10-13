@@ -45,8 +45,10 @@ export const ManualRegion = () => {
       const target = document.getElementById('screen');
       if (!target) return;
       const mediaSize = getMediaSize(target, resolution);
-      setInputRegion(
-        mediaSize ? getCenteredInputRegionByAspectRatio(width, height, mediaSize) : null
+      const next = mediaSize ? getCenteredInputRegionByAspectRatio(width, height, mediaSize) : null;
+      // Preserve active input handlers while unchanged geometry is polled.
+      setInputRegion((previous) =>
+        JSON.stringify(previous) === JSON.stringify(next) ? previous : next
       );
     };
     update();

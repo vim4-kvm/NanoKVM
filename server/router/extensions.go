@@ -16,14 +16,14 @@ func extensionsRouter(r *gin.Engine) {
 
 	ts := tailscale.NewService()
 
-	api.POST("/tailscale/install", ts.Install)     // install tailscale
-	api.POST("/tailscale/uninstall", ts.Uninstall) // uninstall tailscale
-	api.GET("/tailscale/status", ts.GetStatus)     // get tailscale status
-	api.POST("/tailscale/up", ts.Up)               // run tailscale up
-	api.POST("/tailscale/down", ts.Down)           // run tailscale down
-	api.POST("/tailscale/login", ts.Login)         // tailscale login
-	api.POST("/tailscale/logout", ts.Logout)       // tailscale logout
-	api.POST("/tailscale/start", ts.Start)         // tailscale start
-	api.POST("/tailscale/stop", ts.Stop)           // tailscale stop
-	api.POST("/tailscale/restart", ts.Restart)     // tailscale restart
+	api.POST("/tailscale/install", platformHandler("POST /tailscale/install", ts.Install))       // install tailscale
+	api.POST("/tailscale/uninstall", platformHandler("POST /tailscale/uninstall", ts.Uninstall)) // uninstall tailscale
+	api.GET("/tailscale/status", platformHandler("GET /tailscale/status", ts.GetStatus))         // get tailscale status
+	api.POST("/tailscale/up", platformHandler("POST /tailscale/up", ts.Up))                      // run tailscale up
+	api.POST("/tailscale/down", platformHandler("POST /tailscale/down", ts.Down))                // run tailscale down
+	api.POST("/tailscale/login", platformHandler("POST /tailscale/login", ts.Login))             // tailscale login
+	api.POST("/tailscale/logout", platformHandler("POST /tailscale/logout", ts.Logout))          // tailscale logout
+	api.POST("/tailscale/start", platformHandler("POST /tailscale/start", ts.Start))             // tailscale start
+	api.POST("/tailscale/stop", platformHandler("POST /tailscale/stop", ts.Stop))                // tailscale stop
+	api.POST("/tailscale/restart", platformHandler("POST /tailscale/restart", ts.Restart))       // tailscale restart
 }

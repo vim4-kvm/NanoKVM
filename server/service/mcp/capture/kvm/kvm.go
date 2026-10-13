@@ -1,3 +1,5 @@
+//go:build !vim4
+
 package kvmcapture
 
 import (

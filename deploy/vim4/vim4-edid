@@ -1,0 +1,126 @@
+#!/usr/bin/python3
+"""Load and persist the EDID advertised by the KVM HDMI input.
+
+Usage: vim4-edid status | restore | preset NAME | apply NAME < edid.bin
+"""
+import fcntl
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import time
+
+# HDMI RX port B feeds vdin0; the driver numbers ports from 1 in its uapi.
+PORT = 1
+EDID_WITH_PORT = Path('/sys/class/hdmirx/hdmirx0/edid_with_port')
+EDID_SELECT = Path('/sys/class/hdmirx/hdmirx0/edid_select')
+HDMIRX = '/dev/hdmirx0'
+HDMI_IOC_EDID_UPDATE_WITH_PORT = 0x40014813  # _IOW('H', 0x13, unsigned char)
+# tvserver writes this selection before it loads its own EDID set at startup.
+TVSERVER_PENDING = '0x222'
+STATE = Path('/var/lib/vim4-kvm/edid')
+LOCK = '/run/lock/vim4-edid.lock'
+# Records which tvserver run already holds the selected EDID, so capture
+# restarts do not pulse HPD and make the host renegotiate its display.
+LOADED = Path('/run/vim4-edid.loaded')
+PRESETS = {
+    'VIM4-4K60': Path('/etc/tvconfig/hdmi/port1_20.bin'),
+    'VIM4-1080P60': Path('/etc/tvconfig/hdmi/port1_14.bin'),
+}
+DEFAULT = 'VIM4-4K60'
+NAME = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')
+
+
+def validate(edid):
+    """Return the EDID padded to the driver's 256-byte slot."""
+    if len(edid) not in (128, 256):
+        raise ValueError('EDID must contain one or two 128-byte blocks')
+    if edid[:8] != bytes([0, 255, 255, 255, 255, 255, 255, 0]):
+        raise ValueError('missing EDID header')
+    if edid[126] != len(edid) // 128 - 1:
+        raise ValueError('EDID extension count does not match its size')
+    for offset in range(0, len(edid), 128):
+        if sum(edid[offset:offset + 128]) % 256:
+            raise ValueError('EDID block checksum mismatch')
+    return edid + bytes(256 - len(edid))
+
+
+def tvserver_run():
+    return subprocess.run(['systemctl', 'show', '-p', 'InvocationID', '--value', 'tvserver.service'],
+                          capture_output=True, text=True, timeout=10).stdout.strip()
+
+
+def load(edid):
+    # The same EDID fills the 1.4 and 2.0 slots so tvserver's later version
+    # selection cannot switch the host back to a vendor table.
+    with EDID_WITH_PORT.open('wb', buffering=0) as sysfs:
+        sysfs.write(bytes([PORT + 1]) + edid + edid)
+    fd = os.open(HDMIRX, os.O_RDWR)
+    try:
+        fcntl.ioctl(fd, HDMI_IOC_EDID_UPDATE_WITH_PORT, bytes([PORT + 1]))
+    finally:
+        os.close(fd)
+    LOADED.write_text(tvserver_run() + '\n')
+
+
+def persist(name, edid):
+    STATE.mkdir(mode=0o755, parents=True, exist_ok=True)
+    for file, content in (('active.bin', edid), ('active.name', name.encode() + b'\n')):
+        pending = STATE / ('.' + file)
+        pending.write_bytes(content)
+        os.replace(pending, STATE / file)
+
+
+def active():
+    try:
+        name = (STATE / 'active.name').read_text().strip()
+        return name, validate((STATE / 'active.bin').read_bytes())
+    except (OSError, ValueError):
+        return None, None
+
+
+def apply(name, edid):
+    load(validate(edid))
+    if name != DEFAULT:
+        persist(name, edid)
+        return
+    # The default needs no boot override; tvserver loads it by itself.
+    for file in ('active.name', 'active.bin'):
+        (STATE / file).unlink(missing_ok=True)
+
+
+def restore():
+    name, edid = active()
+    if not edid:
+        return
+    run = tvserver_run()
+    if run and LOADED.exists() and LOADED.read_text().strip() == run:
+        return
+    deadline = time.monotonic() + 20
+    while TVSERVER_PENDING in EDID_SELECT.read_text() and time.monotonic() < deadline:
+        time.sleep(0.1)
+    load(edid)
+
+
+def main(args):
+    with open(LOCK, 'w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if args == ['status']:
+            print(active()[0] or DEFAULT)
+        elif args == ['restore']:
+            restore()
+        elif len(args) == 2 and args[0] == 'preset' and args[1] in PRESETS:
+            apply(args[1], PRESETS[args[1]].read_bytes())
+        elif len(args) == 2 and args[0] == 'apply' and NAME.match(args[1]) and args[1] not in PRESETS:
+            apply(args[1], sys.stdin.buffer.read(257))
+        else:
+            raise ValueError('invalid arguments')
+
+
+if __name__ == '__main__':
+    try:
+        main(sys.argv[1:])
+    except (OSError, ValueError) as error:
+        print(error, file=sys.stderr)
+        sys.exit(1)

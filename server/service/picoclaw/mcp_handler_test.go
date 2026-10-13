@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"NanoKVM-Server/common"
 	"NanoKVM-Server/service/controlmode"
 
 	"github.com/gin-gonic/gin"
@@ -22,7 +23,7 @@ func TestMCPBootstrapMethodsAllowedInAllControlModes(t *testing.T) {
 			if err := os.WriteFile(path, []byte(string(mode)+"\n"), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			service := &Service{control: controlmode.NewManager(path, controlmode.ModePicoclaw)}
+			service := &Service{vision: &common.KvmVision{}, control: controlmode.NewManager(path, controlmode.ModePicoclaw)}
 
 			for _, method := range []string{"initialize", "tools/list", "ping"} {
 				response := performMCPRequest(service, jsonRPCBody(method))
@@ -40,7 +41,7 @@ func TestMCPBootstrapMethodsAllowedInAllControlModes(t *testing.T) {
 func TestMCPBootstrapAllowedDuringControlTransition(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	manager := controlmode.NewManager(filepath.Join(t.TempDir(), "mode"), controlmode.ModeOff)
-	service := &Service{control: manager}
+	service := &Service{vision: &common.KvmVision{}, control: manager}
 
 	err := manager.Switch(controlmode.ModePicoclaw, func() error {
 		response := performMCPRequest(service, jsonRPCBody("initialize"))
@@ -72,7 +73,7 @@ func TestMCPActionsReturnStructuredControlErrors(t *testing.T) {
 			if err := os.WriteFile(path, []byte(string(test.mode)+"\n"), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			service := &Service{control: controlmode.NewManager(path, controlmode.ModePicoclaw)}
+			service := &Service{vision: &common.KvmVision{}, control: controlmode.NewManager(path, controlmode.ModePicoclaw)}
 			response := performMCPRequest(
 				service,
 				`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"kvm_actions","arguments":{"actions":[]}}}`,
@@ -91,7 +92,7 @@ func TestMCPActionsReturnStructuredControlErrors(t *testing.T) {
 func TestMCPActionsRejectedDuringControlTransition(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	manager := controlmode.NewManager(filepath.Join(t.TempDir(), "mode"), controlmode.ModePicoclaw)
-	service := &Service{control: manager}
+	service := &Service{vision: &common.KvmVision{}, control: manager}
 
 	err := manager.Switch(controlmode.ModeMCP, func() error {
 		response := performMCPRequest(

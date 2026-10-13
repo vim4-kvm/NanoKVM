@@ -35,6 +35,22 @@ export class WsClient {
   private shouldReconnect = true;
 
   private readonly eventHandlers = new Map<string, Set<MessageHandler>>();
+  private readonly openHandlers = new Set<() => void>();
+  private readonly closeHandlers = new Set<() => void>();
+
+  public onOpen(handler: () => void): () => void {
+    this.openHandlers.add(handler);
+    return () => {
+      this.openHandlers.delete(handler);
+    };
+  }
+
+  public onClose(handler: () => void): () => void {
+    this.closeHandlers.add(handler);
+    return () => {
+      this.closeHandlers.delete(handler);
+    };
+  }
 
   constructor(options: WsClientOptions = {}) {
     this.options = { ...DEFAULT_OPTIONS, ...options };
@@ -94,10 +110,14 @@ export class WsClient {
       return false;
     }
 
-    if (data instanceof ArrayBuffer || (data as unknown) instanceof Uint8Array) {
-      this.instance.send(data);
-    } else {
-      this.instance.send(JSON.stringify(data));
+    try {
+      if (data instanceof ArrayBuffer || (data as unknown) instanceof Uint8Array) {
+        this.instance.send(data);
+      } else {
+        this.instance.send(JSON.stringify(data));
+      }
+    } catch {
+      return false;
     }
 
     return true;
@@ -121,11 +141,13 @@ export class WsClient {
 
   private handleOpen(): void {
     this.reconnectAttempts = 0;
+    this.openHandlers.forEach((handler) => handler());
     this.startHeartbeat();
   }
 
   private handleClose(event: ICloseEvent): void {
     this.stopHeartbeat();
+    this.closeHandlers.forEach((handler) => handler());
 
     if (event.code === 4401) {
       this.shouldReconnect = false;

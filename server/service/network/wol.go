@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -34,9 +33,7 @@ func (s *Service) WakeOnLAN(c *gin.Context) {
 		return
 	}
 
-	cmd := exec.Command("ether-wake", "-b", mac)
-
-	output, err := cmd.CombinedOutput()
+	output, err := sendWakePacket(mac)
 	if err != nil {
 		log.Errorf("failed to wake on lan: %s", err)
 		rsp.ErrRsp(c, -3, string(output))

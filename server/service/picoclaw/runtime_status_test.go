@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"NanoKVM-Server/common"
 	"NanoKVM-Server/service/controlmode"
 )
 
@@ -48,6 +49,7 @@ func TestSyncRuntimeConfigMetadataFromPicoclawReadsPersistedModelWithoutMutation
 	}
 
 	service := &Service{
+		vision: &common.KvmVision{},
 		runtime: &RuntimeStore{status: RuntimeStatus{
 			Status:    "model_not_configured",
 			LastError: "stale model error",
@@ -149,6 +151,7 @@ func TestSyncRuntimeConfigMetadataFromPicoclawReadsPersistedModelWithoutMutation
 func TestSyncRuntimeConfigMetadataFromPicoclawTreatsMissingConfigAsUnconfigured(t *testing.T) {
 	t.Setenv("PICOCLAW_HOME", t.TempDir())
 	service := &Service{
+		vision: &common.KvmVision{},
 		runtime: &RuntimeStore{status: RuntimeStatus{
 			ModelConfigured: true,
 			ModelName:       "stale-model",

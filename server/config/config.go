@@ -44,6 +44,7 @@ func initialize() {
 	}
 
 	checkDefaultValue()
+	normalizePlatformConfig(&instance)
 
 	if instance.Authentication == "disable" {
 		log.Println("NOTICE: Authentication is disabled! Please ensure your service is secure!")

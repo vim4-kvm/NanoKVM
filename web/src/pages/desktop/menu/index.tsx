@@ -6,6 +6,7 @@ import { useAtomValue } from 'jotai';
 import { GripVerticalIcon } from 'lucide-react';
 import Draggable, { DraggableData, DraggableEvent } from 'react-draggable';
 
+import { isVIM4 } from '@/lib/platform';
 import {
   keyboardLedStatusVisibleAtom,
   menuCloseSignalAtom,
@@ -15,10 +16,12 @@ import { useMenuBounds } from '@/hooks/useMenuBounds.ts';
 import { useMenuVisibility } from '@/hooks/useMenuVisibility.ts';
 
 import { KeyboardLedStatus } from '../keyboard-led-status';
+import { AIAssistant } from './assistant';
 import { DownloadImage } from './download.tsx';
 import { Fullscreen } from './fullscreen';
 import { Image } from './image';
 import { Keyboard } from './keyboard';
+import { Microphone } from './microphone';
 import { Mouse } from './mouse';
 import { Collapse, Expand } from './operations';
 import { Picoclaw } from './picoclaw';
@@ -27,6 +30,7 @@ import { Screen } from './screen';
 import { Script } from './script';
 import { Settings } from './settings';
 import { Terminal } from './terminal';
+import { Volume } from './volume';
 import { Wol } from './wol';
 
 export const Menu = () => {
@@ -114,6 +118,8 @@ export const Menu = () => {
             <Divider type="vertical" />
 
             <Screen />
+            {isVIM4 && <Volume />}
+            {isVIM4 && isAdmin && <Microphone />}
             <Keyboard />
             <Mouse />
             <Divider type="vertical" />
@@ -122,6 +128,7 @@ export const Menu = () => {
             {isAdmin && isEnabled('download') && <DownloadImage />}
             {isAdmin && isEnabled('terminal') && <Terminal />}
             {isAdmin && isEnabled('script') && <Script />}
+            {isVIM4 && isAdmin && isEnabled('assistant') && <AIAssistant />}
             {isEnabled('wol') && <Wol />}
 
             {(isEnabled('wol') ||

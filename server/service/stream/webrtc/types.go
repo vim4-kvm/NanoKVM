@@ -10,6 +10,7 @@ import (
 )
 
 type WebRTCManager struct {
+	h265            bool
 	clients         map[*websocket.Conn]*Client
 	clientSnapshot  atomic.Pointer[[]*Client]
 	videoPacketizer rtp.Packetizer
@@ -19,6 +20,7 @@ type WebRTCManager struct {
 }
 
 type Client struct {
+	h265  bool
 	ws    *websocket.Conn
 	video *webrtc.PeerConnection
 	track *Track
@@ -37,7 +39,8 @@ type SignalingHandler struct {
 }
 
 type Track struct {
-	video *webrtc.TrackLocalStaticRTP
+	video   *webrtc.TrackLocalStaticRTP
+	delayID atomic.Uint32
 }
 
 type Message struct {

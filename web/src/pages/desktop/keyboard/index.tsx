@@ -53,6 +53,8 @@ export const Keyboard = () => {
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
+    const removeClose = client.onClose(releaseKeys);
+    const removeOpen = client.onOpen(releaseKeys);
     document.addEventListener('keyup', handleKeyUp);
     document.addEventListener('compositionstart', handleCompositionStart);
     document.addEventListener('compositionend', handleCompositionEnd);
@@ -153,6 +155,8 @@ export const Keyboard = () => {
     }
 
     return () => {
+      removeClose();
+      removeOpen();
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('keyup', handleKeyUp);
       document.removeEventListener('compositionstart', handleCompositionStart);

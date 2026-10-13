@@ -2,9 +2,9 @@ import { useEffect, useRef } from 'react';
 import { useAtomValue } from 'jotai';
 
 import { MouseReportAbsolute } from '@/lib/mouse.ts';
-import { client, MessageEvent } from '@/lib/websocket.ts';
+import { inverseRotatePoint } from '@/lib/video-transform';
 import { scrollDirectionAtom, scrollIntervalAtom } from '@/jotai/mouse.ts';
-import { inputRegionAtom, resolutionAtom } from '@/jotai/screen.ts';
+import { inputRegionAtom, resolutionAtom, videoRotationAtom } from '@/jotai/screen.ts';
 
 import {
   FrameContent,
@@ -14,6 +14,7 @@ import {
   getRenderedMediaRect,
   MediaSize
 } from '../screen/geometry.ts';
+import { registerMouseReleaseHandler, sendMouseRelease, sendMouseReport } from './lifecycle';
 import { MouseAbsoluteEvent } from './types.ts';
 
 enum MouseButton {
@@ -26,12 +27,13 @@ enum MouseButton {
 
 export const Absolute = () => {
   const resolution = useAtomValue(resolutionAtom);
+  const rotation = useAtomValue(videoRotationAtom);
   const inputRegion = useAtomValue(inputRegionAtom);
   const scrollDirection = useAtomValue(scrollDirectionAtom);
   const scrollInterval = useAtomValue(scrollIntervalAtom);
 
   const mouseRef = useRef(new MouseReportAbsolute());
-  const lastPosRef = useRef({ x: 0.5, y: 0.5 });
+  const lastPosRef = useRef({ x: 16384, y: 16384 });
   const lastScrollTimeRef = useRef(0);
 
   // For touch events
@@ -63,6 +65,30 @@ export const Absolute = () => {
     const pressedMouseButtons = new Set<number>();
     let pendingMove: { x: number; y: number } | null = null;
     let moveFrame: number | null = null;
+    const unregister = registerMouseReleaseHandler(releaseInput);
+    window.addEventListener('blur', releaseInput);
+    window.addEventListener('mouseup', releaseOutside);
+    document.addEventListener('visibilitychange', releaseHidden);
+    function releaseInput() {
+      if (moveFrame !== null) cancelAnimationFrame(moveFrame);
+      moveFrame = null;
+      pendingMove = null;
+      clearLongPressTimer();
+      pressedMouseButtons.clear();
+      isTouchActiveRef.current = false;
+      pressedButtonRef.current = null;
+      isDraggingRef.current = false;
+      isLongPressRef.current = false;
+      isDoubleTapCandidateRef.current = false;
+      doubleTapDragArmedUntilRef.current = 0;
+      sendMouseRelease('absolute', mouse.reset(lastPosRef.current.x, lastPosRef.current.y));
+    }
+    function releaseOutside() {
+      if (pressedMouseButtons.size) releaseInput();
+    }
+    function releaseHidden() {
+      if (document.hidden) releaseInput();
+    }
 
     target.addEventListener('mousedown', handleMouseDown);
     target.addEventListener('mouseup', handleMouseUp);
@@ -106,8 +132,7 @@ export const Absolute = () => {
     }
 
     function sendReport(report: Uint8Array) {
-      const data = new Uint8Array([MessageEvent.Mouse, ...report]);
-      client.send(data);
+      if (!sendMouseReport('absolute', report)) releaseInput();
     }
 
     // Mouse down event
@@ -118,6 +143,8 @@ export const Absolute = () => {
       }
 
       flushMouseMove();
+      const coordinate = getCoordinate(e);
+      if (coordinate) lastPosRef.current = coordinate;
       pressedMouseButtons.add(e.button);
       handleMouseEvent({ type: 'mousedown', button: e.button });
     }
@@ -394,8 +421,8 @@ export const Absolute = () => {
       const finalX = Math.max(0, Math.min(1, x));
       const finalY = Math.max(0, Math.min(1, y));
 
-      const hexX = Math.floor(0x7fff * finalX) + 0x0001;
-      const hexY = Math.floor(0x7fff * finalY) + 0x0001;
+      const hexX = Math.round(0x7fff * finalX);
+      const hexY = Math.round(0x7fff * finalY);
 
       return { x: hexX, y: hexY };
     }
@@ -415,15 +442,32 @@ export const Absolute = () => {
           return null;
         }
 
-        return {
-          x: (clientX - viewportRect.left) / viewportRect.width,
-          y: (clientY - viewportRect.top) / viewportRect.height
-        };
+        return inverseRotatePoint(
+          (clientX - viewportRect.left) / viewportRect.width,
+          (clientY - viewportRect.top) / viewportRect.height,
+          rotation
+        );
       }
 
-      const rect = target.getBoundingClientRect();
+      let rect = target.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) {
         return null;
+      }
+      if (rotation) {
+        const point = inverseRotatePoint(
+          (clientX - rect.left) / rect.width,
+          (clientY - rect.top) / rect.height,
+          rotation
+        );
+        const quarterTurn = rotation === 90 || rotation === 270;
+        rect = new DOMRect(
+          0,
+          0,
+          quarterTurn ? rect.height : rect.width,
+          quarterTurn ? rect.width : rect.height
+        );
+        clientX = point.x * rect.width;
+        clientY = point.y * rect.height;
       }
 
       const mediaSize =
@@ -512,10 +556,14 @@ export const Absolute = () => {
     }
 
     return () => {
+      unregister();
+      releaseInput();
+      window.removeEventListener('blur', releaseInput);
+      window.removeEventListener('mouseup', releaseOutside);
+      document.removeEventListener('visibilitychange', releaseHidden);
       if (moveFrame !== null) {
         cancelAnimationFrame(moveFrame);
       }
-      sendReport(mouse.reset(lastPosRef.current.x, lastPosRef.current.y));
       target.removeEventListener('mousemove', handleMouseMove);
       target.removeEventListener('mousedown', handleMouseDown);
       target.removeEventListener('mouseup', handleMouseUp);
@@ -531,7 +579,7 @@ export const Absolute = () => {
         clearTimeout(longPressTimerRef.current);
       }
     };
-  }, [inputRegion, resolution, scrollDirection, scrollInterval]);
+  }, [inputRegion, resolution, rotation, scrollDirection, scrollInterval]);
 
   // disable default events
   function disableEvent(event: Event) {

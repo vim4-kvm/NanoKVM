@@ -48,10 +48,12 @@ func server(r *gin.Engine) {
 	wsRouter(r)
 	downloadRouter(r)
 	extensionsRouter(r)
+	platformRouter(r)
 }
 
 func LoopbackHTTPAllowedPaths() []string {
 	paths := PicoclawLoopbackHTTPAllowedPaths()
 	paths = append(paths, HIDLoopbackHTTPAllowedPaths()...)
+	paths = append(paths, platformLoopbackHTTPPaths()...)
 	return paths
 }

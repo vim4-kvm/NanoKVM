@@ -16,7 +16,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var systemPasswordUpdater = changeRootPassword
+var systemPasswordUpdater = platformPasswordUpdater
 
 func (s *Service) ChangePassword(c *gin.Context) {
 	var req proto.ChangePasswordReq

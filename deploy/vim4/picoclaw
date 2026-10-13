@@ -1,0 +1,104 @@
+#!/bin/sh
+# Run as the application user; children remain in nanokvm.service's cgroup.
+exec python3 - "$@" <<'PY'
+import fcntl
+import os
+from pathlib import Path
+import shutil
+import signal
+import subprocess
+import sys
+import time
+
+ROOT = Path('/var/lib/vim4-kvm/picoclaw')
+HOME_DIR = Path(os.environ.get('PICOCLAW_HOME', str(ROOT / 'home')))
+BINARY = ROOT / 'bin/picoclaw'
+ASSETS = Path('/opt/vim4-nanokvm/picoclaw')
+PID_FILE = HOME_DIR / '.picoclaw.pid'
+
+def running(pid):
+    try:
+        args = Path(f'/proc/{pid}/cmdline').read_bytes().split(b'\0')
+        return (os.readlink(f'/proc/{pid}/exe') == str(BINARY)
+                and len(args) > 1 and args[1] == b'gateway'
+                and Path(f'/proc/{pid}').stat().st_uid == os.getuid())
+    except (FileNotFoundError, ProcessLookupError, PermissionError):
+        return False
+
+def gateway_pid():
+    try:
+        pid = int(PID_FILE.read_text().strip())
+        if pid > 0 and running(pid):
+            return pid
+    except (FileNotFoundError, ValueError):
+        pass
+    for entry in Path('/proc').iterdir():
+        if entry.name.isdecimal() and running(int(entry.name)):
+            return int(entry.name)
+    return None
+
+def main():
+    if len(sys.argv) != 2 or sys.argv[1] not in ('start', 'stop', 'onboard'):
+        raise RuntimeError('usage: vim4-picoclaw {start|stop|onboard}')
+    if os.getuid() == 0:
+        raise RuntimeError('run PicoClaw as the NanoKVM application user')
+    os.umask(0o077)
+    HOME_DIR.mkdir(parents=True, exist_ok=True)
+    env = dict(os.environ, PICOCLAW_HOME=str(HOME_DIR))
+    env.setdefault('NANOKVM_BRIDGE_BASE_URL', 'http://127.0.0.1:8080')
+    with (HOME_DIR / '.lifecycle.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        command = sys.argv[1]
+        pid = gateway_pid()
+        if command == 'stop':
+            if pid:
+                os.kill(pid, signal.SIGTERM)
+                deadline = time.monotonic() + 10
+                while running(pid) and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                if running(pid):
+                    os.kill(pid, signal.SIGKILL)
+                    deadline = time.monotonic() + 2
+                    while running(pid) and time.monotonic() < deadline:
+                        time.sleep(0.1)
+                    if running(pid):
+                        raise RuntimeError('PicoClaw did not stop')
+            PID_FILE.unlink(missing_ok=True)
+            return
+        if not BINARY.is_file():
+            raise RuntimeError('PicoClaw is not installed')
+        if command == 'onboard':
+            if pid:
+                raise RuntimeError('stop PicoClaw before initializing it')
+            with (ROOT / 'runtime.log').open('ab') as log:
+                subprocess.run([str(BINARY), 'onboard'], cwd=HOME_DIR, env=env,
+                               stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+                               timeout=50, check=True)
+            workspace = HOME_DIR / 'workspace'
+            workspace.mkdir(exist_ok=True)
+            shutil.copytree(ASSETS / 'skills/kvm-control', workspace / 'skills/kvm-control', dirs_exist_ok=True)
+            shutil.copyfile(ASSETS / 'AGENT_KVM.md', workspace / 'AGENT.md')
+            return
+        if pid:
+            print(f'PicoClaw already running ({pid})')
+            return
+        if not (HOME_DIR / 'config.json').is_file():
+            raise RuntimeError('PicoClaw configuration is missing')
+        with (ROOT / 'runtime.log').open('ab') as log:
+            child = subprocess.Popen([str(BINARY), 'gateway'], cwd=HOME_DIR, env=env,
+                                     stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+                                     close_fds=True)
+        try:
+            PID_FILE.write_text(f'{child.pid}\n')
+        except OSError:
+            child.terminate()
+            child.wait(timeout=5)
+            raise
+        print(f'PicoClaw started ({child.pid})')
+
+try:
+    main()
+except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+    print(f'PicoClaw: {error}', file=sys.stderr)
+    sys.exit(1)
+PY

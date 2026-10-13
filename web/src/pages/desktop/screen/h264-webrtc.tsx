@@ -27,7 +27,7 @@ const parseSignalingData = <T,>(data?: string): T | null => {
   return JSON.parse(data) as T;
 };
 
-export const H264Webrtc = () => {
+export const H264Webrtc = ({ codec = 'h264' }: { codec?: 'h264' | 'h265' }) => {
   const { t } = useTranslation();
   const mouseStyle = useAtomValue(mouseStyleAtom);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,7 +44,7 @@ export const H264Webrtc = () => {
   }, [t]);
 
   useEffect(() => {
-    const url = `${getBaseUrl('ws')}/api/stream/h264`;
+    const url = `${getBaseUrl('ws')}${codec === 'h265' ? '/api/stream/h265/webrtc' : '/api/stream/h264'}`;
     const ws = new W3cWebSocket(url);
     const videoElement = videoRef.current;
 
@@ -163,7 +163,15 @@ export const H264Webrtc = () => {
         }
       };
 
-      peer.addTransceiver('video', { direction: 'recvonly' });
+      const receiver = peer.addTransceiver('video', { direction: 'recvonly' });
+      if (codec === 'h265') {
+        const codecs = RTCRtpReceiver.getCapabilities('video')?.codecs.filter(
+          (item) =>
+            item.mimeType.toLowerCase() === 'video/h265' ||
+            item.mimeType.toLowerCase() === 'video/rtx'
+        );
+        if (codecs?.length) receiver.setCodecPreferences(codecs);
+      }
     };
 
     const handleVideoAnswer = (data: RTCSessionDescriptionInit) => {

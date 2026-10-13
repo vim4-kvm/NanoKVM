@@ -42,7 +42,7 @@ func (s *Service) Terminal(c *gin.Context) {
 	}()
 
 	cmd := exec.Command("/bin/sh", "-l")
-	cmd.Dir = "/root"
+	cmd.Dir, _ = os.UserHomeDir()
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
 		log.Errorf("failed to start pty: %s", err)
@@ -54,7 +54,7 @@ func (s *Service) Terminal(c *gin.Context) {
 		_ = cmd.Wait()
 	}()
 
-	go wsWrite(ws, ptmx)
+	go func() { wsWrite(ws, ptmx); _ = ws.Close() }()
 	wsRead(ws, ptmx)
 }
 

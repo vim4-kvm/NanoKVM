@@ -1,0 +1,31 @@
+#!/bin/sh
+# Fixed HDMI operations only; never evaluate arguments as shell commands.
+set -eu
+[ "$#" = 2 ] || exit 2
+case "$1:$2" in
+ 1280:720|1920:1080|3840:2160) ;;
+ *) echo 'Unsupported capture resolution' >&2; exit 2 ;;
+esac
+exec 9>/run/lock/vim4-video.lock
+flock -x 9
+config=/etc/default/vim4-kvm-hdmi
+previous=
+existed=0
+if [ -f "$config" ]; then
+ existed=1
+ previous=$(cat "$config")
+fi
+pending=$(mktemp /etc/default/.vim4-video.XXXXXX)
+trap 'rm -f "$pending"' EXIT HUP INT TERM
+printf 'HDMI_WIDTH=%s\nHDMI_HEIGHT=%s\n' "$1" "$2" > "$pending"
+chmod 0644 "$pending"
+mv "$pending" "$config"
+if ! systemctl restart vim4-kvm-hdmi.service; then
+ if [ "$existed" = 1 ]; then
+  printf '%s\n' "$previous" > "$config"
+ else
+  rm -f "$config"
+ fi
+ systemctl restart vim4-kvm-hdmi.service || true
+ exit 1
+fi

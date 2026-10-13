@@ -5,12 +5,19 @@ import { CheckIcon, TvMinimalPlayIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { setVideoMode as setCookie } from '@/lib/localstorage.ts';
+import { isVIM4 } from '@/lib/platform';
 import { videoModeAtom } from '@/jotai/screen.ts';
 
 const videoModes = [
   { key: 'direct', name: 'H.264 (Direct)' },
   { key: 'h264', name: 'H.264 (WebRTC)' },
-  { key: 'mjpeg', name: 'MJPEG' }
+  { key: 'mjpeg', name: 'MJPEG' },
+  ...(isVIM4
+    ? [
+        { key: 'h265', name: 'H.265 (WebRTC)' },
+        { key: 'h265-direct', name: 'H.265 (Direct)' }
+      ]
+    : [])
 ];
 
 export const VideoMode = () => {
@@ -20,7 +27,7 @@ export const VideoMode = () => {
   const [isDirectSupported, setIsDirectSupported] = useState(false);
 
   useEffect(() => {
-    const isHttps = window.location.protocol === 'https:';
+    const isHttps = window.isSecureContext;
     const isDecoderSupported = !!window.VideoDecoder;
 
     setIsDirectSupported(isHttps && isDecoderSupported);
@@ -54,7 +61,7 @@ export const VideoMode = () => {
 
       {videoModes.map(
         (mode) =>
-          (isDirectSupported || mode.key !== 'direct') && (
+          (isDirectSupported || !['direct', 'h265-direct'].includes(mode.key)) && (
             <div
               key={mode.key}
               className="flex cursor-pointer select-none items-center rounded py-1.5 pl-1 pr-5 hover:bg-neutral-700/70"

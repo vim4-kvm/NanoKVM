@@ -1,8 +1,10 @@
 package picoclaw
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"image/jpeg"
 	"net/http"
 	"time"
 
@@ -67,6 +69,21 @@ func (s *Service) captureScreenshot(ctx context.Context, query ScreenshotQuery) 
 		return nil, ScreenshotMeta{}, newPicoclawError(CodeScreenshotFailed, "screenshot capture canceled")
 	}
 	defer releaseLease()
+	if vision, ok := s.vision.(interface {
+		SnapshotImage(context.Context, uint16, uint16, uint16) ([]byte, error)
+	}); ok {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		data, err := vision.SnapshotImage(ctx, width, height, quality)
+		if err != nil {
+			return nil, ScreenshotMeta{}, newPicoclawError(CodeScreenshotFailed, "failed to capture screenshot")
+		}
+		cfg, err := jpeg.DecodeConfig(bytes.NewReader(data))
+		if err != nil {
+			return nil, ScreenshotMeta{}, newPicoclawError(CodeScreenshotFailed, "invalid screenshot")
+		}
+		return data, ScreenshotMeta{SourceWidth: screen.Width, SourceHeight: screen.Height, CaptureWidth: uint16(cfg.Width), CaptureHeight: uint16(cfg.Height), Format: "jpeg"}, nil
+	}
 
 	for attempt := 0; attempt < screenshotRetryCount; attempt++ {
 		if err := ctx.Err(); err != nil {

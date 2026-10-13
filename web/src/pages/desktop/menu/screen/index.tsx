@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react';
-import { useAtomValue } from 'jotai';
+import { useAtomValue, useSetAtom } from 'jotai';
 import { MonitorIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { getVideoSettings } from '@/api/vim4-stream';
 import { updateScreen } from '@/api/vm';
 import * as ls from '@/lib/localstorage';
-import { resolutionAtom, videoModeAtom } from '@/jotai/screen.ts';
+import { isVIM4 } from '@/lib/platform';
+import { resolutionAtom, videoModeAtom, videoParametersAtom } from '@/jotai/screen.ts';
 import { MenuItem } from '@/components/menu-item.tsx';
 
+import { Edid } from '../vim4/edid';
+import { Resolution as CaptureResolution } from '../vim4/resolution';
+import { Rotation } from '../vim4/rotation';
 import { getQualityMap, getScreenType } from './constants.ts';
 import { Fps } from './fps';
 import { FrameDetect } from './frame-detect';
@@ -24,11 +29,24 @@ export const Screen = () => {
   const videoMode = useAtomValue(videoModeAtom);
   const resolution = useAtomValue(resolutionAtom);
   const isMjpeg = videoMode === 'mjpeg';
+  const setParameters = useSetAtom(videoParametersAtom);
+  const parameters = useAtomValue(videoParametersAtom);
   const [fps, setFps] = useState(30);
   const [quality, setQuality] = useState(2);
   const [gop, setGop] = useState(30);
 
   useEffect(() => {
+    if (isVIM4) {
+      getVideoSettings()
+        .then((rsp) => {
+          if (rsp.code !== 0) return;
+          setFps(rsp.data.fps);
+          setGop(rsp.data.gop);
+          setParameters((old) => ({ ...old, ...rsp.data, rateControlMode: rsp.data.rateControl }));
+        })
+        .catch(console.error);
+      return;
+    }
     const screenType = getScreenType(videoMode);
     if (screenType !== null) {
       updateScreen('type', screenType);
@@ -77,11 +95,33 @@ export const Screen = () => {
   const content = (
     <div className="flex flex-col space-y-1">
       <VideoMode />
-      <Resolution />
+      {isVIM4 ? (
+        <>
+          <CaptureResolution />
+          <Edid />
+        </>
+      ) : (
+        <Resolution />
+      )}
       <Quality quality={quality} setQuality={setQuality} />
-      <Fps fps={fps} setFps={setFps} />
+      <Fps
+        fps={isVIM4 ? parameters.fps : fps}
+        setFps={(value) => {
+          setFps(value);
+          if (isVIM4) setParameters((old) => ({ ...old, fps: value }));
+        }}
+      />
       <Scale />
-      {!isMjpeg && <Gop gop={gop} setGop={setGop} />}
+      {isVIM4 && <Rotation />}
+      {!isMjpeg && (
+        <Gop
+          gop={isVIM4 ? parameters.gop : gop}
+          setGop={(value) => {
+            setGop(value);
+            if (isVIM4) setParameters((old) => ({ ...old, gop: value }));
+          }}
+        />
+      )}
       {isMjpeg && <FrameDetect />}
       <Reset />
     </div>

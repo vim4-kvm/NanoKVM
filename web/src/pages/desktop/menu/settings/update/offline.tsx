@@ -4,6 +4,7 @@ import { ExternalLinkIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import * as api from '@/api/application.ts';
+import { isVIM4 } from '@/lib/platform';
 
 interface UpdateProps {
   status: string;
@@ -96,6 +97,8 @@ export const Offline = ({ status, setStatus, setIsLocked, setErrMsg }: UpdatePro
   }
 
   function validateFilename(filename: string) {
+    if (isVIM4)
+      return /^nanokvm_(?:pro_)?\d+\.\d+\.\d+(?:[+.-][A-Za-z0-9.-]+)?\.tar\.gz$/.test(filename);
     const regex: RegExp = /^nanokvm_\d+\.\d+\.\d+\.tar\.gz$/;
     return regex.test(filename);
   }
@@ -110,7 +113,11 @@ export const Offline = ({ status, setStatus, setIsLocked, setErrMsg }: UpdatePro
 
               <a
                 className="flex items-center text-neutral-500 hover:text-blue-500"
-                href="https://github.com/sipeed/NanoKVM/releases"
+                href={
+                  isVIM4
+                    ? 'https://github.com/vim4-kvm/NanoKVM/releases'
+                    : 'https://github.com/sipeed/NanoKVM/releases'
+                }
                 target="_blank"
               >
                 <ExternalLinkIcon size={15} />

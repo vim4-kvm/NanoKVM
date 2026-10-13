@@ -1,6 +1,7 @@
 import { cloneElement, CSSProperties, ReactElement, useEffect, useRef, useState } from 'react';
 import { useAtomValue } from 'jotai';
 
+import { videoRotationAtom } from '@/jotai/screen';
 import {
   controlRegionModeAtom,
   inputRegionAtom,
@@ -22,6 +23,9 @@ export const ScreenViewport = ({ children }: ScreenViewportProps) => {
   const mode = useAtomValue(controlRegionModeAtom);
   const selecting = useAtomValue(inputRegionSelectingAtom);
   const videoScale = useAtomValue(videoScaleAtom);
+  const configuredRotation = useAtomValue(videoRotationAtom);
+  const rotation = selecting ? 0 : configuredRotation;
+  const quarterTurn = rotation === 90 || rotation === 270;
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState<ViewportSize>({ width: 0, height: 0 });
   const cropped = mode !== 'off' && !!inputRegion && !selecting;
@@ -43,13 +47,10 @@ export const ScreenViewport = ({ children }: ScreenViewportProps) => {
     return () => observer.disconnect();
   }, []);
 
-  let viewportWidth = containerSize.width;
-  let viewportHeight = containerSize.height;
+  let viewportWidth = quarterTurn ? containerSize.height : containerSize.width;
+  let viewportHeight = quarterTurn ? containerSize.width : containerSize.height;
   if (cropped && inputRegion && containerSize.width > 0 && containerSize.height > 0) {
-    const scale = Math.min(
-      containerSize.width / inputRegion.width,
-      containerSize.height / inputRegion.height
-    );
+    const scale = Math.min(viewportWidth / inputRegion.width, viewportHeight / inputRegion.height);
     viewportWidth = inputRegion.width * scale;
     viewportHeight = inputRegion.height * scale;
   }
@@ -88,7 +89,7 @@ export const ScreenViewport = ({ children }: ScreenViewportProps) => {
         style={{
           width: viewportWidth || '100%',
           height: viewportHeight || '100%',
-          transform: `scale(${videoScale})`,
+          transform: `scale(${videoScale}) rotate(${rotation}deg)`,
           transformOrigin: 'center'
         }}
       >

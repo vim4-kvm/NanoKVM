@@ -1,0 +1,20 @@
+[Unit]
+Description=VIM4 NanoKVM web application
+After=network-online.target vim4-kvm-hdmi.service vim4-kvm-gadget.service vim4-kvm-pd.service
+Wants=vim4-kvm-hdmi.service
+Requires=vim4-kvm-gadget.service vim4-kvm-pd.service
+Conflicts=vim4-kvm.service
+
+[Service]
+User=khadas
+Group=khadas
+SupplementaryGroups=video input dialout audio
+WorkingDirectory=/opt/vim4-nanokvm
+ExecStart=/opt/vim4-nanokvm/NanoKVM-Server
+Restart=on-failure
+RestartSec=3
+PrivateTmp=false
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

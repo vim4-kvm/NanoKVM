@@ -3,13 +3,21 @@ package application
 import (
 	"crypto/sha512"
 	"encoding/base64"
+	"strings"
 	"testing"
 )
+
+func testPackageName() string {
+	if strings.HasPrefix(latestManifestName, "nanokvm_pro_") {
+		return "nanokvm_pro_1.2.3.tar.gz"
+	}
+	return "nanokvm_1.2.3.tar.gz"
+}
 
 func validLatest() Latest {
 	digest := sha512.Sum512([]byte("package"))
 	return Latest{
-		Version: "1.2.3", Name: "nanokvm_1.2.3.tar.gz",
+		Version: "1.2.3", Name: testPackageName(),
 		Sha512: base64.StdEncoding.EncodeToString(digest[:]), LegacySize: 1,
 	}
 }

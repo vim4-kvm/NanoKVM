@@ -15,6 +15,7 @@ let pendingAckTimestamp: number | null = null;
 let decodeBackpressured = false;
 let reportedFrameWidth = 0;
 let reportedFrameHeight = 0;
+let codec = 'avc1.42E02A';
 
 const maxQueuedFrames = 1;
 const maxReconnectDelayMs = 5_000;
@@ -27,6 +28,7 @@ const frameQueue = new Queue<VideoFrame>();
 const frameChannel = new MessageChannel();
 
 type WorkerMessage = {
+  codec?: 'h264' | 'h265';
   type: 'h264' | 'stop';
   canvas?: OffscreenCanvas;
   url?: string;
@@ -47,6 +49,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
       }
 
       canvas = offscreenCanvas;
+      codec = event.data.codec === 'h265' ? 'hev1.1.6.L93.B0' : 'avc1.42E02A';
       reportedFrameWidth = 0;
       reportedFrameHeight = 0;
       ctx = canvas!.getContext('2d', {
@@ -212,7 +215,7 @@ function createDecoder(): VideoDecoder | null {
       releaseDecodeBackpressure(configuredDecoder);
     };
     instance.configure({
-      codec: 'avc1.42E02A',
+      codec,
       hardwareAcceleration: 'prefer-hardware',
       optimizeForLatency: true
     });

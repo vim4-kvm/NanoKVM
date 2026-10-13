@@ -24,13 +24,9 @@ type Hid struct {
 	kbMutex                sync.Mutex
 	mouseMutex             sync.Mutex
 	ledReaderStartOnce     sync.Once
+	ledPollMutex           sync.Mutex
+	viewers                int
 }
-
-const (
-	HID0 = "/dev/hidg0" // Keyboard
-	HID1 = "/dev/hidg1" // Mouse (Relative Mode)
-	HID2 = "/dev/hidg2" // Touchpad (Absolute Mode)
-)
 
 const (
 	hidWriteTimeout     = 50 * time.Millisecond
@@ -219,10 +215,9 @@ func (h *Hid) openKeyboardLedReaderNoLock() error {
 		return err
 	}
 
-	// Keep this descriptor blocking. The LED reader waits for either an output
-	// report or a lifecycle notification, so an idle host does not cause a
-	// periodic EAGAIN retry loop.
-	file, err := os.OpenFile(HID0, os.O_RDONLY, 0o666)
+	// poll waits for reports or lifecycle notifications. The actual read is
+	// nonblocking so a disconnect cannot trap the reader while holding kbMutex.
+	file, err := os.OpenFile(HID0, os.O_RDONLY|syscall.O_NONBLOCK, 0o666)
 	if err != nil {
 		return fmt.Errorf("%s: %w", HID0, err)
 	}
@@ -240,6 +235,10 @@ func (h *Hid) closeKeyboardLedReaderNoLock() {
 	file := h.g0Reader
 	h.g0Reader = nil
 	h.notifyKeyboardLedReaderNoLock()
+	// Wait for poll to unregister its kernel wait entry before a gadget relink.
+	// Closing the fd alone does not wait for a concurrent poll syscall to exit.
+	h.ledPollMutex.Lock()
+	defer h.ledPollMutex.Unlock()
 	if err := file.Close(); err != nil {
 		log.Debugf("close keyboard LED reader failed: %s", err)
 	}
@@ -289,6 +288,29 @@ func (h *Hid) Open() {
 	defer h.mouseMutex.Unlock()
 
 	h.OpenNoLock()
+}
+
+// Acquire/Release pair with input viewers. Queues and ManualSession cleanup
+// finish before Release, so the final viewer closes only drained endpoints.
+func (h *Hid) Acquire() {
+	h.Lock()
+	defer h.Unlock()
+	h.viewers++
+	if h.viewers == 1 {
+		h.OpenNoLock()
+	}
+}
+
+func (h *Hid) Release() {
+	h.Lock()
+	defer h.Unlock()
+	if h.viewers == 0 {
+		return
+	}
+	h.viewers--
+	if h.viewers == 0 {
+		h.CloseNoLock()
+	}
 }
 
 func (h *Hid) Close() {

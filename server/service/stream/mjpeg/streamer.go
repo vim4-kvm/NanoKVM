@@ -5,6 +5,7 @@ import (
 	"NanoKVM-Server/service/stream"
 	"NanoKVM-Server/service/vm"
 	"fmt"
+	"net/http"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -18,7 +19,7 @@ var crlf = []byte("\r\n")
 
 type Streamer struct {
 	mutex          sync.Mutex
-	clients        map[*gin.Context]bool
+	clients        map[*gin.Context]chan []byte
 	clientSnapshot atomic.Pointer[[]*gin.Context]
 	running        int32
 	frameMutex     sync.RWMutex
@@ -29,16 +30,18 @@ type Streamer struct {
 
 func NewStreamer() *Streamer {
 	s := &Streamer{
-		clients: make(map[*gin.Context]bool),
+		clients: make(map[*gin.Context]chan []byte),
 	}
 	s.updateClientSnapshotLocked()
 
 	return s
 }
 
-func (s *Streamer) AddClient(c *gin.Context) {
+func (s *Streamer) AddClient(c *gin.Context) <-chan []byte {
+	frames := make(chan []byte, 1)
+	stream.SelectMJPEG()
 	s.mutex.Lock()
-	s.clients[c] = true
+	s.clients[c] = frames
 	count := s.updateClientSnapshotLocked()
 	s.viewerVersion++
 	version := s.viewerVersion
@@ -49,6 +52,7 @@ func (s *Streamer) AddClient(c *gin.Context) {
 		go s.run()
 		log.Debug("mjpeg stream started")
 	}
+	return frames
 }
 
 func (s *Streamer) RemoveClient(c *gin.Context) {
@@ -83,7 +87,13 @@ func (s *Streamer) getClients() []*gin.Context {
 }
 
 func (s *Streamer) run() {
-	defer atomic.StoreInt32(&s.running, 0)
+	defer func() {
+		stream.StopMJPEG()
+		atomic.StoreInt32(&s.running, 0)
+		if len(s.getClients()) > 0 && atomic.CompareAndSwapInt32(&s.running, 0, 1) {
+			go s.run()
+		}
+	}()
 
 	screen := common.GetScreen()
 	common.CheckScreen()
@@ -111,12 +121,7 @@ func (s *Streamer) run() {
 			s.setLatestFrame(data, screen.Width, screen.Height)
 		}
 
-		for _, client := range clients {
-			if err := writeFrame(client, data); err != nil {
-				log.Errorf("failed to write mjpeg frame for client %s: %s", client.Request.RemoteAddr, err)
-				s.RemoveClient(client)
-			}
-		}
+		s.broadcast(data)
 
 		if screen.FPS != fps && screen.FPS != 0 {
 			fps = screen.FPS
@@ -124,6 +129,18 @@ func (s *Streamer) run() {
 		}
 
 		stream.GetFrameRateCounter().Update()
+	}
+}
+
+func (s *Streamer) broadcast(data []byte) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	for _, frames := range s.clients {
+		select {
+		case <-frames:
+		default:
+		}
+		frames <- data
 	}
 }
 
@@ -193,6 +210,8 @@ func (s *Streamer) getLatestFrame() (LatestFrame, bool) {
 }
 
 func writeFrame(c *gin.Context, data []byte) (err error) {
+	// A stalled HTTP viewer cannot retain a capture lease indefinitely.
+	_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(2 * time.Second))
 	defer func() {
 		if r := recover(); r != nil {
 			err = c.Request.Context().Err()

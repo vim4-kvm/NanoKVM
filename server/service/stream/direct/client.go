@@ -1,6 +1,7 @@
 package direct
 
 import (
+	"NanoKVM-Server/service/stream"
 	"encoding/binary"
 	"sync"
 	"time"
@@ -188,6 +189,14 @@ func (q *frameQueue) requestResync() {
 	q.mutex.Unlock()
 }
 
+func (q *frameQueue) discardPredictionChain() {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	q.clearFramesLocked()
+	q.waitingForKeyframe = true
+	// Keep unacknowledged frames in the flow window.
+}
+
 func (q *frameQueue) close() {
 	q.mutex.Lock()
 	q.closed = true
@@ -267,7 +276,9 @@ func hasCaptureDemand(clients []*client) bool {
 }
 
 func (c *client) offer(frame *outboundFrame) {
-	c.queue.offer(frame)
+	if !c.queue.offer(frame) {
+		stream.RequestKeyframe()
+	}
 }
 
 func (c *client) handleControl(messageType int, data []byte) {
@@ -284,6 +295,7 @@ func (c *client) handleControl(messageType int, data []byte) {
 	case streamResyncMessage:
 		if len(data) == 1 {
 			c.queue.requestResync()
+			stream.RequestKeyframe()
 		}
 	}
 }
