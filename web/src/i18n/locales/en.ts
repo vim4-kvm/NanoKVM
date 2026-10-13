@@ -328,7 +328,7 @@ const en = {
       diskOff: 'Turn off the virtual disk',
       uploadbox: 'Drop file here or click to select',
       inputfile: 'Please enter the image File',
-      NoISO: 'No ISO',
+      NoISO: 'Select an ISO or IMG disk image',
       sha256: 'SHA-256 (optional)',
       sha256Placeholder: 'Enter a 64-character SHA-256 checksum',
       invalidSHA256: 'SHA-256 must be a 64-character hexadecimal string',

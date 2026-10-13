@@ -41,7 +41,11 @@ func (s *Service) Terminal(c *gin.Context) {
 		_ = ws.Close()
 	}()
 
-	cmd := exec.Command("/bin/sh", "-l")
+	shell, err := exec.LookPath("bash")
+	if err != nil {
+		shell = "/bin/sh"
+	}
+	cmd := exec.Command(shell, "-l")
 	cmd.Dir, _ = os.UserHomeDir()
 	ptmx, err := pty.Start(cmd)
 	if err != nil {

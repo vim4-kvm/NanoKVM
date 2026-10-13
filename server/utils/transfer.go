@@ -1,3 +1,5 @@
+//go:build !vim4
+
 package utils
 
 // TransferSentinelPath coordinates application uploads and virtual-media

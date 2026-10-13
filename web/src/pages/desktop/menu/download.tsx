@@ -270,7 +270,7 @@ export const DownloadImage = () => {
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
-    if (!file || !file.name.toLowerCase().endsWith('.iso')) {
+    if (!file || !/\.(iso|img)$/i.test(file.name)) {
       setStatus('failed');
       setLog(t('download.NoISO'));
       return;
@@ -286,7 +286,7 @@ export const DownloadImage = () => {
   function upload(file: File | null) {
     if (!file) return;
 
-    if (!file || !file.name.toLowerCase().endsWith('.iso')) {
+    if (!/\.(iso|img)$/i.test(file.name)) {
       setStatus('failed');
       setLog(t('download.NoISO'));
       return;
@@ -405,7 +405,7 @@ export const DownloadImage = () => {
                   e.preventDefault();
                   setIsDragging(false);
                   const file = e.dataTransfer.files?.[0] ?? null;
-                  if (!file || !file.name.toLowerCase().endsWith('.iso')) {
+                  if (!file || !/\.(iso|img)$/i.test(file.name)) {
                     setStatus('failed');
                     setLog(t('download.NoISO'));
                     return;
@@ -436,6 +436,7 @@ export const DownloadImage = () => {
                 <Input
                   id="file-upload"
                   type="file"
+                  accept=".iso,.img"
                   onChange={handleFileChange}
                   disabled={status === 'in_progress'}
                   className="hidden"
