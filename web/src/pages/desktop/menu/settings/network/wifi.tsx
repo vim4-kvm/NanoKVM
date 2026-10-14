@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { LockOutlined, WifiOutlined } from '@ant-design/icons';
 import { Button, Input, Modal, Switch } from 'antd';
-import { WifiIcon, WifiPenIcon } from 'lucide-react';
+import { CheckIcon, RefreshCwIcon, WifiIcon, WifiPenIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import * as api from '@/api/network.ts';
@@ -237,11 +237,15 @@ export const Wifi = () => {
         {/* form */}
         <div className="flex flex-col items-center space-y-3 py-6">
           {isVIM4 && (
-            <div className="w-[300px] space-y-2">
+            <div className="w-[300px] max-w-full space-y-2">
               <div className="flex items-center justify-between">
-                <span>{t('settings.network.wifi.nearby')}</span>
+                <span className="text-sm text-neutral-300">
+                  {t('settings.network.wifi.nearby')}
+                </span>
                 <Button
+                  shape="round"
                   size="small"
+                  icon={<RefreshCwIcon size={14} />}
                   loading={isScanning}
                   disabled={status !== ''}
                   onClick={() => setScanRevision((value) => value + 1)}
@@ -259,14 +263,14 @@ export const Wifi = () => {
                   {t('settings.network.wifi.scanEmpty')}
                 </div>
               )}
-              <div className="max-h-48 overflow-y-auto">
+              <div className="max-h-48 space-y-0.5 overflow-y-auto rounded-lg bg-neutral-800/50">
                 {networks.map((network) => (
                   <button
                     key={network.ssid}
                     type="button"
                     disabled={status !== ''}
                     aria-pressed={selectedNetwork?.ssid === network.ssid}
-                    className="flex w-full items-center justify-between gap-2 rounded p-2 text-left hover:bg-neutral-700 aria-pressed:bg-neutral-700"
+                    className="flex min-h-[40px] w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-3 py-2 text-left text-sm text-neutral-300 transition-colors hover:bg-neutral-700/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 disabled:cursor-not-allowed disabled:opacity-50 aria-pressed:bg-neutral-700/50"
                     onClick={() => {
                       setSelectedNetwork(network);
                       setSsid(network.ssid);
@@ -274,12 +278,19 @@ export const Wifi = () => {
                       setMessage('');
                     }}
                   >
-                    <span className="min-w-0 break-all">{network.ssid}</span>
-                    <span className="shrink-0 text-xs text-neutral-400">
-                      {network.signal}% ·{' '}
-                      {network.security && network.security !== '--'
-                        ? network.security
-                        : t('settings.network.wifi.openNetwork')}
+                    {selectedNetwork?.ssid === network.ssid ? (
+                      <CheckIcon size={16} className="shrink-0 text-blue-400" />
+                    ) : (
+                      <WifiIcon size={16} className="shrink-0 text-neutral-400" />
+                    )}
+                    <span className="flex min-w-0 flex-col space-y-0.5">
+                      <span className="break-all">{network.ssid}</span>
+                      <span className="text-xs text-neutral-500">
+                        {network.signal}% ·{' '}
+                        {network.security && network.security !== '--'
+                          ? network.security
+                          : t('settings.network.wifi.openNetwork')}
+                      </span>
                     </span>
                   </button>
                 ))}
