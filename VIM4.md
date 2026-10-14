@@ -22,6 +22,11 @@ builder checks its ABI with an aborting stub, never included in device packages.
 
 ## Runtime boundaries
 
+Custom H.264/H.265 bitrate accepts 1000–60000 kbps; the default remains 12000.
+Deploy the matching vim4-amlvenc plugin with the applications: older builds
+limit bitrate to 12000 kbps. Higher targets require more network bandwidth;
+actual output depends on the scene and rate-control mode.
+
 | Area | VIM4 implementation |
 |---|---|
 | H.264/H.265 WebRTC and Direct | Shared DMA-buf capture and hardware encoder, PTS, keyframe requests, bounded viewer queues |

@@ -18,8 +18,13 @@ import (
 
 func TestVideoSettingsRejectUnsupportedControls(t *testing.T) {
 	valid := VideoSettings{1920, 1080, 8000, 30, 60, 80, "cbr"}
+	high := valid
+	high.Bitrate = 60000
+	if err := high.Validate(); err != nil {
+		t.Fatalf("60 Mbps rejected: %v", err)
+	}
 	for _, change := range []func(*VideoSettings){
-		func(s *VideoSettings) { s.Height = 720 }, func(s *VideoSettings) { s.Bitrate = 20000 },
+		func(s *VideoSettings) { s.Height = 720 }, func(s *VideoSettings) { s.Bitrate = 60001 },
 		func(s *VideoSettings) { s.FPS = 61 }, func(s *VideoSettings) { s.Quality = 0 }, func(s *VideoSettings) { s.GOP = 0 },
 		func(s *VideoSettings) { s.RateControl = "" }, func(s *VideoSettings) { s.RateControl = "CBR" },
 	} {

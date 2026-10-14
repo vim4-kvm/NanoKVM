@@ -30,8 +30,8 @@ func (s VideoSettings) Validate() error {
 	if !((s.Width == 1280 && s.Height == 720) || (s.Width == 1920 && s.Height == 1080) || (s.Width == 3840 && s.Height == 2160)) {
 		return fmt.Errorf("unsupported capture resolution")
 	}
-	if s.Bitrate < 1000 || s.Bitrate > 12000 || s.GOP < 1 || s.GOP > 200 || s.FPS < 0 || s.FPS > 60 || s.Quality < 1 || s.Quality > 100 {
-		return fmt.Errorf("bitrate must be 1000–12000, GOP 1–200, FPS 0–60 and JPEG quality 1–100")
+	if s.Bitrate < 1000 || s.Bitrate > 60000 || s.GOP < 1 || s.GOP > 200 || s.FPS < 0 || s.FPS > 60 || s.Quality < 1 || s.Quality > 100 {
+		return fmt.Errorf("bitrate must be 1000–60000, GOP 1–200, FPS 0–60 and JPEG quality 1–100")
 	}
 	if s.RateControl != "cbr" && s.RateControl != "vbr" {
 		return fmt.Errorf("rate control must be cbr or vbr")

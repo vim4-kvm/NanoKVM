@@ -68,10 +68,10 @@ export const VideoSettings = () => {
               />
             </div>
             <div className="flex items-center justify-between">
-              <span>{t('settings.screen.bitrate.title')} (Kbps)</span>
+              <span title={t('settings.screen.bitrate.higher')}>{t('settings.screen.bitrate.title')} (1000–60000 Kbps)</span>
               <InputNumber
                 min={1000}
-                max={12000}
+                max={60000}
                 step={1000}
                 disabled={busy}
                 value={settings.bitrate}
