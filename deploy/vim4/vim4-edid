@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """Load and persist the EDID advertised by the KVM HDMI input.
 
-Usage: vim4-edid status | restore | preset NAME | apply NAME < edid.bin
+Usage: vim4-edid status | restore | reclaim | preset NAME | apply NAME < edid.bin
 """
 import fcntl
 import os
@@ -21,8 +21,8 @@ HDMI_IOC_EDID_UPDATE_WITH_PORT = 0x40014813  # _IOW('H', 0x13, unsigned char)
 TVSERVER_PENDING = '0x222'
 STATE = Path('/var/lib/vim4-kvm/edid')
 LOCK = '/run/lock/vim4-edid.lock'
-# Records which tvserver run already holds the selected EDID, so capture
-# restarts do not pulse HPD and make the host renegotiate its display.
+# Records the tvserver run and the table it holds, so capture restarts do not
+# pulse HPD. Shared with JetKVM's helper, which writes the same format.
 LOADED = Path('/run/vim4-edid.loaded')
 PRESETS = {
     'VIM4-4K60': Path('/etc/tvconfig/hdmi/port1_20.bin'),
@@ -61,7 +61,7 @@ def load(edid):
         fcntl.ioctl(fd, HDMI_IOC_EDID_UPDATE_WITH_PORT, bytes([PORT + 1]))
     finally:
         os.close(fd)
-    LOADED.write_text(tvserver_run() + '\n')
+    LOADED.write_text(f'{tvserver_run()} {edid.hex()}\n')
 
 
 def persist(name, edid):
@@ -90,12 +90,23 @@ def apply(name, edid):
         (STATE / file).unlink(missing_ok=True)
 
 
-def restore():
+def restore(reclaim=False):
+    """Reload the selected EDID once per tvserver run.
+
+    reclaim also reloads when this run holds another table, such as one
+    JetKVM loaded; capture restarts must not, as JetKVM may be running.
+    """
     name, edid = active()
-    if not edid:
-        return
     run = tvserver_run()
-    if run and LOADED.exists() and LOADED.read_text().strip() == run:
+    loaded = LOADED.read_text().strip() if LOADED.exists() else ''
+    if run and loaded.startswith(f'{run} ') and not reclaim:
+        return
+    if not edid:
+        # tvserver loads the default itself at boot.
+        if not loaded.startswith(f'{run} '):
+            return
+        edid = validate(PRESETS[DEFAULT].read_bytes())
+    if run and loaded == f'{run} {edid.hex()}':
         return
     deadline = time.monotonic() + 20
     while TVSERVER_PENDING in EDID_SELECT.read_text() and time.monotonic() < deadline:
@@ -110,6 +121,8 @@ def main(args):
             print(active()[0] or DEFAULT)
         elif args == ['restore']:
             restore()
+        elif args == ['reclaim']:
+            restore(reclaim=True)
         elif len(args) == 2 and args[0] == 'preset' and args[1] in PRESETS:
             apply(args[1], PRESETS[args[1]].read_bytes())
         elif len(args) == 2 and args[0] == 'apply' and NAME.match(args[1]) and args[1] not in PRESETS:

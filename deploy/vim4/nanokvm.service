@@ -13,6 +13,8 @@ RuntimeDirectory=vim4-nanokvm
 RuntimeDirectoryMode=0700
 WorkingDirectory=/opt/vim4-nanokvm
 ExecStartPre=+/usr/libexec/vim4-media disk restore
+# JetKVM may have loaded its own EDID; a failure keeps the current table.
+ExecStartPre=-+/usr/libexec/vim4-edid reclaim
 ExecStart=/opt/vim4-nanokvm/NanoKVM-Server
 Restart=on-failure
 RestartSec=3

@@ -82,7 +82,7 @@ class EdidTest(unittest.TestCase):
 
     def test_restore_once_per_tvserver_run(self):
         edid.persist('custom.bin', block())
-        edid.LOADED.write_text('run-1\n')
+        edid.LOADED.write_text(f'run-1 {edid.validate(block()).hex()}\n')
         with patch.object(edid, 'load') as load:
             edid.restore()
             load.assert_not_called()
@@ -93,7 +93,28 @@ class EdidTest(unittest.TestCase):
     def test_restore_without_selection_leaves_vendor_edid(self):
         with patch.object(edid, 'load') as load:
             edid.restore()
+            edid.restore(reclaim=True)
         load.assert_not_called()
+
+    def test_reclaim_replaces_another_applications_table(self):
+        edid.persist('custom.bin', block())
+        edid.LOADED.write_text('run-1 00ff\n')
+        with patch.object(edid, 'load') as load:
+            edid.restore()
+            load.assert_not_called()
+            edid.restore(reclaim=True)
+        load.assert_called_once_with(edid.validate(block()))
+
+    def test_reclaim_returns_default_and_skips_current_table(self):
+        default = Path(self.directory.name) / 'default.bin'
+        default.write_bytes(block(1, extension()))
+        with patch.dict(edid.PRESETS, {edid.DEFAULT: default}), patch.object(edid, 'load') as load:
+            edid.LOADED.write_text('run-1 00ff\n')
+            edid.restore(reclaim=True)
+            load.assert_called_once_with(block(1, extension()))
+            edid.LOADED.write_text(f'run-1 {block(1, extension()).hex()}\n')
+            edid.restore(reclaim=True)
+        load.assert_called_once()
 
 
 if __name__ == '__main__':
