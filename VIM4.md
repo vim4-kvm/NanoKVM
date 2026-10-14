@@ -27,6 +27,11 @@ Deploy the matching vim4-amlvenc plugin with the applications: older builds
 limit bitrate to 12000 kbps. Higher targets require more network bandwidth;
 actual output depends on the scene and rate-control mode.
 
+The Screen → Quality menu offers H.264/H.265 presets from 1 to 60 Mbps and a
+slider in 0.1 Mbps steps. Dragging previews the value; releasing saves it through
+the video settings API. Refreshing reads the saved device bitrate, including
+custom values between presets. MJPEG retains separate JPEG quality choices.
+
 | Area | VIM4 implementation |
 |---|---|
 | H.264/H.265 WebRTC and Direct | Shared DMA-buf capture and hardware encoder, PTS, keyframe requests, bounded viewer queues |
