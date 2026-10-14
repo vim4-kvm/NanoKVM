@@ -135,7 +135,7 @@ const en = {
         resolutionHint:
           'Changes capture output, not HDMI input. Actual frame rate depends on the source, FPS setting and video mode.',
         mjpegLimit:
-          'MJPEG is limited to 10 fps; actual speed depends on resolution. Settings affect all viewers.'
+          'MJPEG frame rate depends on resolution, JPEG quality and network bandwidth. Settings affect all viewers.'
       },
       qualityAuto: 'Automatic',
       rotation: 'Rotation',

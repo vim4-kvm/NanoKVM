@@ -131,7 +131,7 @@ const zh = {
         frameRateLimit: '最高 {{fps}} FPS',
         resolutionHint:
           '仅调整采集输出，不改变 HDMI 输入。实际帧率取决于信号源、FPS 设置和视频模式。',
-        mjpegLimit: 'MJPEG 上限为 10 帧/秒，实际帧率取决于分辨率。设置对所有观看者生效。'
+        mjpegLimit: 'MJPEG 实际帧率取决于分辨率、JPEG 质量和网络带宽。设置对所有观看者生效。'
       },
       qualityAuto: '自动',
       rotation: '旋转',

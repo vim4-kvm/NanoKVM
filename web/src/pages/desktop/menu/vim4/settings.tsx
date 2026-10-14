@@ -100,7 +100,7 @@ export const VideoSettings = () => {
             value={settings.fps}
             disabled={busy}
             style={{ width: 160 }}
-            options={[0, ...(mode === 'mjpeg' ? [5, 10] : [24, 30, 60])].map((fps) => ({
+            options={[0, ...(mode === 'mjpeg' ? [5, 10, 15, 30, 60] : [24, 30, 60])].map((fps) => ({
               value: fps,
               label: fps ? `${fps} fps` : t('screen.auto')
             }))}
