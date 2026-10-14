@@ -50,7 +50,7 @@ func ConnectAudio(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	peer, err := createPeerConnection(servers, engine)
+	peer, err := createPeerConnection(servers, engine, nil)
 	if err != nil {
 		return
 	}

@@ -71,7 +71,12 @@ func connectVideo(c *gin.Context, h265 bool) {
 		}
 	}
 
-	videoConn, err := createPeerConnection(iceServers, mediaEngine)
+	batcher, err := newUDPBatcher()
+	if err != nil {
+		log.Errorf("failed to create video sender: %s", err)
+		return
+	}
+	videoConn, err := createPeerConnection(iceServers, mediaEngine, batcher)
 	if err != nil {
 		log.Errorf("failed to create h264 video peer connection: %s", err)
 		return
@@ -84,6 +89,7 @@ func connectVideo(c *gin.Context, h265 bool) {
 	// create client
 	client := NewClient(wsConn, videoConn)
 	client.h265 = h265
+	client.batcher = batcher
 	if err := client.AddTrack(); err != nil {
 		log.Errorf("failed to add track: %s", err)
 		return
@@ -174,12 +180,20 @@ func createMediaEngine() (*webrtc.MediaEngine, error) {
 	return mediaEngine, nil
 }
 
-func createPeerConnection(iceServers []webrtc.ICEServer, mediaEngine *webrtc.MediaEngine) (*webrtc.PeerConnection, error) {
+func createPeerConnection(iceServers []webrtc.ICEServer, mediaEngine *webrtc.MediaEngine, batcher *udpBatcher) (*webrtc.PeerConnection, error) {
 	settingEngine := webrtc.SettingEngine{}
+	if batcher != nil {
+		settingEngine.SetNet(batcher)
+	}
 	settingEngine.SetSRTPProtectionProfiles(
 		dtls.SRTP_AEAD_AES_128_GCM,
 		dtls.SRTP_AES128_CM_HMAC_SHA1_80,
 	)
+	// The DTLS server selects the SRTP profile. Browsers prefer AES-CM/HMAC,
+	// which costs twice as much per packet here as hardware-accelerated GCM.
+	if err := settingEngine.SetAnsweringDTLSRole(webrtc.DTLSRoleServer); err != nil {
+		return nil, err
+	}
 
 	apiOptions := []func(api *webrtc.API){
 		webrtc.WithSettingEngine(settingEngine),

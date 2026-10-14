@@ -164,7 +164,11 @@ func (m *WebRTCManager) startVideoWriter() (chan stream.H264Frame, <-chan struct
 				}
 			}
 			for _, client := range m.getClients() {
+				client.batcher.begin()
 				err := client.track.writeVideoPackets(packets)
+				if flushErr := client.batcher.flush(); err == nil {
+					err = flushErr
+				}
 				if err != nil {
 					log.Errorf("failed to write h264 video to client: %s", err)
 					m.RemoveClient(client.WsConn())

@@ -20,11 +20,12 @@ type WebRTCManager struct {
 }
 
 type Client struct {
-	h265  bool
-	ws    *websocket.Conn
-	video *webrtc.PeerConnection
-	track *Track
-	mutex sync.Mutex
+	h265    bool
+	ws      *websocket.Conn
+	video   *webrtc.PeerConnection
+	track   *Track
+	batcher *udpBatcher
+	mutex   sync.Mutex
 }
 
 func (c *Client) WsConn() *websocket.Conn {
