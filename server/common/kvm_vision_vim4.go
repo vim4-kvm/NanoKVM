@@ -306,15 +306,20 @@ func (s VideoSettings) pipeline(mode uint8) string {
 
 func (s VideoSettings) pipelineAtRate(mode uint8, rate int) string {
 	p := "vfmcapsrc ! queue max-size-buffers=3 max-size-bytes=0 max-size-time=0 ! "
+	_, _, hardwareJPEG := gstcapture.IntPropertyRange("vim4jpegenc", "quality")
 	fps := s.FPS
-	if mode == STREAM_TYPE_MJPEG && (fps == 0 || fps > 10) {
+	if mode == STREAM_TYPE_MJPEG && !hardwareJPEG && (fps == 0 || fps > 10) {
 		fps = 10
 	}
 	if fps > 0 {
 		p += fmt.Sprintf("videorate drop-only=true ! video/x-raw,framerate=%d/1 ! ", fps)
 	}
 	if mode == STREAM_TYPE_MJPEG {
-		p += fmt.Sprintf("videoconvert ! video/x-raw,format=I420 ! jpegenc quality=%d ! ", s.Quality)
+		if hardwareJPEG {
+			p += fmt.Sprintf("vim4jpegenc quality=%d ! ", s.Quality)
+		} else {
+			p += fmt.Sprintf("videoconvert ! video/x-raw,format=I420 ! jpegenc quality=%d ! ", s.Quality)
+		}
 	} else {
 		// Coalesce PLIs from several viewers into one forced IDR.
 		budget := ""

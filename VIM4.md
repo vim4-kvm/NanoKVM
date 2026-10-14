@@ -35,7 +35,7 @@ custom values between presets. MJPEG retains separate JPEG quality choices.
 | Area | VIM4 implementation |
 |---|---|
 | H.264/H.265 WebRTC and Direct | Shared DMA-buf capture and hardware encoder, PTS, keyframe requests, bounded viewer queues |
-| MJPEG | Software JPEG, at most 10 fps; not equivalent to hardware 4K60 |
+| MJPEG | DMA hardware JPEG via vim4jpegenc, up to the saved FPS/source limit; software fallback capped at 10 fps when the plugin is unavailable |
 | Audio | One shared HDMI ALSA reader, independent Opus WebRTC for every video mode |
 | Microphone | Browser audio to USB UAC2; requires a secure context and exchanges USB networking for UAC2 |
 | Capture controls | Resolution, FPS, bitrate, GOP, CBR/VBR, EDID and rotation in the original menu/settings layout |
