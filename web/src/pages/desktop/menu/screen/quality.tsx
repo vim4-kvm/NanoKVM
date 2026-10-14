@@ -72,7 +72,7 @@ export const Quality = ({ quality, setQuality }: QualityProps) => {
   const content = (
     <>
       {showBitrate && (
-        <div className="w-[240px] px-3 pb-3">
+        <div className="w-[180px] px-1 pb-2">
           <div className="text-center">{(draftBitrate ?? parameters.bitrate) / 1000} Mbps</div>
           <Slider
             min={1000}
@@ -97,7 +97,7 @@ export const Quality = ({ quality, setQuality }: QualityProps) => {
           key={item.key}
           disabled={busy}
           aria-pressed={item.key === selected}
-          className="flex h-[30px] w-full cursor-pointer select-none items-center rounded pl-1 pr-5 hover:bg-neutral-700/70 disabled:opacity-50"
+          className="flex h-[30px] w-full cursor-pointer select-none items-center rounded border-0 bg-transparent py-0 pl-1 pr-5 text-left text-inherit [font:inherit] hover:bg-neutral-700/70 disabled:opacity-50"
           onClick={() => update(item.key)}
         >
           <div className="flex h-[14px] w-[20px] items-end text-blue-500">
