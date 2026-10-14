@@ -36,6 +36,18 @@ export function getWiFi() {
   return http.get('/api/network/wifi');
 }
 
+export type WifiNetwork = {
+  ssid: string;
+  bssid: string;
+  signal: number;
+  frequency: number;
+  security: string;
+};
+
+export function scanWifi() {
+  return http.get('/api/network/wifi/scan');
+}
+
 // connect wifi without auth (only available in wifi configuration mode)
 export function connectWifiNoAuth(ssid: string, password: string, apPassword?: string) {
   const data = {

@@ -64,6 +64,11 @@ servers. The `nanokvm_pro_VERSION.tar.gz` and `nanokvm_pro_latest.json` names
 remain for installed updater compatibility. No public update source is set.
 Platform dependency changes require complete component deployment first.
 
+Settings → Network → Wi-Fi scans nearby networks when opened and supports
+refreshing the list. Names are grouped by SSID and sorted by strongest signal;
+select a network and enter its password, or leave it empty for an open network.
+Manual SSID entry remains available when scanning fails or a network is hidden.
+
 ## Validation limits
 
 Software checks cover both backend builds, VIM4/default Go suites, helper tests,
@@ -73,6 +78,7 @@ and do not inject input into the attached Mac:
 ```sh
 VITE_PLATFORM=vim4 pnpm dev --host 127.0.0.1 --port 5179
 PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs node tests/input.mjs
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs node tests/wifi.mjs
 ```
 
 Earlier hardware results do not qualify this branch. Video/audio playback,

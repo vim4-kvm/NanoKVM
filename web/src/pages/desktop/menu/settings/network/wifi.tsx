@@ -5,6 +5,7 @@ import { WifiIcon, WifiPenIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import * as api from '@/api/network.ts';
+import { isVIM4 } from '@/lib/platform.ts';
 
 export const Wifi = () => {
   const { t } = useTranslation();
@@ -18,6 +19,46 @@ export const Wifi = () => {
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState<'' | 'connecting' | 'disconnecting'>('');
   const [message, setMessage] = useState('');
+  const [networks, setNetworks] = useState<api.WifiNetwork[]>([]);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanFailed, setScanFailed] = useState(false);
+  const [scanRevision, setScanRevision] = useState(0);
+  const [selectedNetwork, setSelectedNetwork] = useState<api.WifiNetwork | null>(null);
+
+  useEffect(() => {
+    if (!isVIM4 || !isModalOpen) return;
+    let cancelled = false;
+    setIsScanning(true);
+    setScanFailed(false);
+    setNetworks([]);
+
+    async function scan() {
+      try {
+        const rsp = await api.scanWifi();
+        if (rsp.code !== 0) throw new Error('Wi-Fi scan failed');
+        // Connections use SSID, so show each name once, with its strongest signal.
+        const strongest = new Map<string, api.WifiNetwork>();
+        for (const network of rsp.data.wifiList as api.WifiNetwork[]) {
+          const previous = strongest.get(network.ssid);
+          if (!previous || network.signal > previous.signal) {
+            strongest.set(network.ssid, network);
+          }
+        }
+        if (!cancelled) {
+          setNetworks([...strongest.values()].sort((a, b) => b.signal - a.signal));
+        }
+      } catch {
+        if (!cancelled) setScanFailed(true);
+      } finally {
+        if (!cancelled) setIsScanning(false);
+      }
+    }
+
+    void scan();
+    return () => {
+      cancelled = true;
+    };
+  }, [isModalOpen, scanRevision]);
 
   useEffect(() => {
     getWiFi();
@@ -47,7 +88,10 @@ export const Wifi = () => {
   async function connect() {
     setMessage('');
 
-    if (!ssid || !password) return;
+    const requiresPassword =
+      !isVIM4 ||
+      (selectedNetwork && selectedNetwork.security !== '' && selectedNetwork.security !== '--');
+    if (!ssid || (requiresPassword && !password)) return;
 
     if (status !== '') return;
     setStatus('connecting');
@@ -63,8 +107,9 @@ export const Wifi = () => {
 
       setConnectedWifi(ssid);
       setIsModalOpen(false);
-    } catch (err) {
-      console.log(err);
+    } catch {
+      setMessage(t('settings.network.wifi.failed'));
+      getWiFi();
     } finally {
       setStatus('');
     }
@@ -91,6 +136,7 @@ export const Wifi = () => {
   }
 
   function openModal() {
+    setSelectedNetwork(null);
     setSsid('');
     setPassword('');
     setMessage('');
@@ -138,6 +184,7 @@ export const Wifi = () => {
           shape="round"
           size="small"
           onClick={openModal}
+          aria-label={t('settings.network.wifi.description')}
         >
           <div className="flex items-center justify-center px-1.5">
             <WifiIcon size={16} />
@@ -154,6 +201,7 @@ export const Wifi = () => {
         okText={t('settings.network.wifi.joinBtn')}
         cancelText={t('settings.network.wifi.cancelBtn')}
         confirmLoading={status === 'connecting'}
+        okButtonProps={{ disabled: status === 'disconnecting' }}
       >
         {/* title */}
         <div className="flex items-center space-x-5">
@@ -165,7 +213,9 @@ export const Wifi = () => {
             <div className="flex flex-col">
               <span className="text-lg font-bold">{t('settings.network.wifi.connect')}</span>
               <span className="text-xs text-neutral-400">
-                {t('settings.network.wifi.connectDesc1')}
+                {t(
+                  isVIM4 ? 'settings.network.wifi.scanHint' : 'settings.network.wifi.connectDesc1'
+                )}
               </span>
             </div>
           ) : (
@@ -186,15 +236,78 @@ export const Wifi = () => {
 
         {/* form */}
         <div className="flex flex-col items-center space-y-3 py-6">
+          {isVIM4 && (
+            <div className="w-[300px] space-y-2">
+              <div className="flex items-center justify-between">
+                <span>{t('settings.network.wifi.nearby')}</span>
+                <Button
+                  size="small"
+                  loading={isScanning}
+                  disabled={status !== ''}
+                  onClick={() => setScanRevision((value) => value + 1)}
+                >
+                  {t('settings.network.wifi.scan')}
+                </Button>
+              </div>
+              {scanFailed && (
+                <div role="alert" className="text-sm text-red-500">
+                  {t('settings.network.wifi.scanFailed')}
+                </div>
+              )}
+              {!isScanning && !scanFailed && networks.length === 0 && (
+                <div className="text-sm text-neutral-500">
+                  {t('settings.network.wifi.scanEmpty')}
+                </div>
+              )}
+              <div className="max-h-48 overflow-y-auto">
+                {networks.map((network) => (
+                  <button
+                    key={network.ssid}
+                    type="button"
+                    disabled={status !== ''}
+                    aria-pressed={selectedNetwork?.ssid === network.ssid}
+                    className="flex w-full items-center justify-between gap-2 rounded p-2 text-left hover:bg-neutral-700 aria-pressed:bg-neutral-700"
+                    onClick={() => {
+                      setSelectedNetwork(network);
+                      setSsid(network.ssid);
+                      setPassword('');
+                      setMessage('');
+                    }}
+                  >
+                    <span className="min-w-0 break-all">{network.ssid}</span>
+                    <span className="shrink-0 text-xs text-neutral-400">
+                      {network.signal}% ·{' '}
+                      {network.security && network.security !== '--'
+                        ? network.security
+                        : t('settings.network.wifi.openNetwork')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <Input
             value={ssid}
+            disabled={status !== ''}
             style={{ width: '300px' }}
             prefix={<WifiOutlined />}
             placeholder={t('settings.network.wifi.ssid')}
-            onChange={(e) => setSsid(e.target.value)}
+            onChange={(e) => {
+              setSsid(e.target.value);
+              setSelectedNetwork(null);
+              setPassword('');
+              setMessage('');
+            }}
           />
           <Input.Password
             value={password}
+            disabled={
+              status !== '' ||
+              !!(
+                selectedNetwork &&
+                (!selectedNetwork.security || selectedNetwork.security === '--')
+              )
+            }
             style={{ width: '300px' }}
             prefix={<LockOutlined />}
             placeholder={t('settings.network.wifi.password')}
