@@ -14,7 +14,7 @@ import sys
 
 def run(*args, timeout=20, check=True):
     result = subprocess.run(args, capture_output=True, text=True, timeout=timeout,
-                            env={**os.environ, 'LC_ALL': 'C', 'DEBIAN_FRONTEND': 'noninteractive'})
+                            env={**os.environ, 'LC_ALL': 'C.UTF-8', 'DEBIAN_FRONTEND': 'noninteractive'})
     if check and result.returncode:
         raise RuntimeError(f'{args[0]} operation failed')
     return result.stdout.strip()
@@ -45,6 +45,14 @@ def wifi_device():
 
 
 def wifi_rows(device, scan):
+    if scan:
+        if run('nmcli', 'radio', 'wifi') != 'enabled':
+            raise ValueError('Wi-Fi radio is disabled')
+        # On VIM4 the link can be down while NetworkManager still
+        # reports disconnected; nmcli then succeeds with an empty scan list.
+        links = json.loads(run('ip', '-j', 'link', 'show', 'dev', device))
+        if 'UP' not in links[0]['flags']:
+            run('ip', 'link', 'set', 'dev', device, 'up')
     output = run('nmcli', '-t', '-f', 'IN-USE,SSID,BSSID,SIGNAL,FREQ,SECURITY',
                  'device', 'wifi', 'list', 'ifname', device, '--rescan', 'yes' if scan else 'no')
     result = []
@@ -142,7 +150,7 @@ def execute(action, req):
             # --ask reads secrets from stdin, not the process argument list.
             result = subprocess.run(['nmcli', '--ask', '--wait', '35', 'device', 'wifi',
                 'connect', ssid, 'ifname', device], input=password + '\n',
-                capture_output=True, text=True, timeout=40, env={**os.environ, 'LC_ALL': 'C'})
+                capture_output=True, text=True, timeout=40, env={**os.environ, 'LC_ALL': 'C.UTF-8'})
             if result.returncode:
                 raise RuntimeError('Wi-Fi connection failed')
             return {}

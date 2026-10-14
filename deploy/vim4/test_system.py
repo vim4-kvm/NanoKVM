@@ -11,6 +11,37 @@ loader.exec_module(system)
 
 
 class SystemTest(unittest.TestCase):
+    def test_scan_recovers_enabled_but_down_interface(self):
+        calls = []
+        def command(*args, **kwargs):
+            calls.append(args)
+            if args == ('nmcli', 'radio', 'wifi'):
+                return 'enabled'
+            if args[:3] == ('ip', '-j', 'link'):
+                return '[{"flags": ["BROADCAST", "MULTICAST"]}]'
+            if args[:3] == ('ip', 'link', 'set'):
+                return ''
+            self.assertIn(('ip', 'link', 'set', 'dev', 'wlan0', 'up'), calls)
+            return r':家庭\:网络:12\:34\:56\:78\:90\:AB:75:5180 MHz:WPA2'
+        with patch.object(system, 'run', side_effect=command):
+            rows = system.wifi_rows('wlan0', True)
+        self.assertEqual(rows[0][1]['ssid'], '家庭:网络')
+        self.assertEqual(rows[0][1]['signal'], 75)
+
+    def test_scan_respects_disabled_radio(self):
+        with patch.object(system, 'run', return_value='disabled') as command:
+            with self.assertRaisesRegex(ValueError, 'radio is disabled'):
+                system.wifi_rows('wlan0', True)
+        command.assert_called_once_with('nmcli', 'radio', 'wifi')
+
+    def test_scan_does_not_reconfigure_up_interface(self):
+        with patch.object(system, 'run', side_effect=[
+            'enabled', '[{"flags": ["UP"]}]', ''
+        ]) as command:
+            self.assertEqual(system.wifi_rows('wlan0', True), [])
+        self.assertFalse(any(call.args[:3] == ('ip', 'link', 'set')
+                             for call in command.call_args_list))
+
     def test_dns_validation_happens_before_commands(self):
         with patch.object(system, 'run') as command:
             for request in ({'mode': 'manual', 'servers': []},
