@@ -93,3 +93,32 @@ The capture plugin additionally logs kernel delivery-to-dequeue time with
 `GST_DEBUG=vfmcapsrc:4`. Its V4L2 timestamp marks delivery, not exposure. Remove
 diagnostic overrides and restart after measurement: logging can perturb timings.
 Normal service operation performs no extra diagnostic clock queries or logging.
+
+## WebRTC send path
+
+Each RTP packet sent through pion cost one `sendto` (about 12 us of kernel CPU
+on this board) plus SRTP. Large 4K P-frames (about 300 KB, 250 packets) took
+9 ms to leave the board at about 280 Mbps, often longer than a frame interval,
+which appeared as browser frame-interval jitter.
+
+- The board answers as DTLS server and so selects AES-GCM SRTP, which the CPU
+  accelerates (4 us versus 9 us per packet for AES-CM/HMAC with Chrome).
+- The playout-delay extension is added to the first packet of a frame only.
+- Each video connection uses its own UDP sockets. While a frame is written,
+  their datagrams are collected and equal-sized runs are sent with
+  `UDP_SEGMENT` (up to 64 segments / 64 KB per call). Refused segmentation
+  falls back to per-packet sends. Multicast (mDNS) sockets are not wrapped:
+  `ipv4.PacketConn` needs the concrete socket, otherwise its read loop spins.
+
+Moving 4K desktop, 30 Mbps CBR, Chrome, 45 s each, zero loss/drops:
+
+| Metric | Before | After |
+| --- | ---: | ---: |
+| Large-frame send time p50 / p99, ms | 9.0 / 24.7 | 3.6 / 9.2 |
+| Last packet behind capture clock p99, ms | 25.2 | 10.3 |
+| Browser inter-frame delay SD, ms | 8.1 | 5.9 |
+
+With the new path, the SD is 3.6 ms at 12 Mbps, 2.4 ms at 6 Mbps and 1.8 ms at
+3 Mbps. Remaining variation is mostly encode time, which grows with frame
+size (about 12 ms small P, 14.5 ms 300 KB P, 18.5 ms IDR at 4K). GOP 600
+did not help at 30 Mbps: rate control spent the savings on larger P-frames.
