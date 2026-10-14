@@ -5,7 +5,7 @@ import { CheckIcon, MonitorIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { getVideoSettings, setResolution } from '@/api/vim4-stream';
-import { videoModeAtom, videoParametersAtom } from '@/jotai/screen';
+import { videoParametersAtom } from '@/jotai/screen';
 
 const captureWidthAtom = atom(0);
 const captureBusyAtom = atom(false);
@@ -17,10 +17,8 @@ const resolutions = [
 
 export const Resolution = ({ variant = 'menu' }: { variant?: 'menu' | 'settings' }) => {
   const { t } = useTranslation();
-  const videoMode = useAtomValue(videoModeAtom);
   const videoParameters = useAtomValue(videoParametersAtom);
-  const modeLimit = videoMode === 'mjpeg' ? 10 : 60;
-  const frameRateLimit = Math.min(videoParameters.fps || modeLimit, modeLimit);
+  const frameRateLimit = Math.min(videoParameters.fps || 60, 60);
   const [width, setWidth] = useAtom(captureWidthAtom);
   const [busy, setBusy] = useAtom(captureBusyAtom);
   const [notice, context] = message.useMessage();

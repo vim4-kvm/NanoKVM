@@ -45,7 +45,8 @@ single-byte `3` requests resynchronization. Codec selection is by route.
 
 Settings response fields: `width`, `height`, `bitrate`, `gop`, `fps`, `quality`,
 `rateControl`, `actualFPS` (measured over three seconds). Supported resolutions
-are 1280×720, 1920×1080 and 3840×2160; MJPEG is capped at 10 fps. The configured
+are 1280×720, 1920×1080 and 3840×2160; hardware MJPEG follows the configured
+FPS ceiling (up to 60), while the software fallback is capped at 10 fps. The configured
 FPS is a drop-only ceiling, not a promise to produce that many frames.
 
 Video settings live at `/etc/kvm/video.json`; resolution changes call
