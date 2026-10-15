@@ -21,16 +21,35 @@ import (
 type audioViewer struct {
 	peer    *webrtc.PeerConnection
 	track   *webrtc.TrackLocalStaticSample
-	packets chan []byte
+	packets chan audioPacket
 	done    chan struct{}
+}
+
+type audioPacket struct {
+	data     []byte
+	sequence uint64
+}
+
+func (p audioPacket) sample(previous uint64) media.Sample {
+	var dropped uint64
+	if previous != 0 && p.sequence > previous {
+		dropped = p.sequence - previous - 1
+	}
+	// Pion advances both sequence numbers and the RTP clock for missing packets.
+	// A new viewer starts at live audio without inventing preceding packet loss.
+	if dropped > 65535 {
+		dropped = 65535
+	}
+	return media.Sample{Data: p.data, Duration: 20 * time.Millisecond, PrevDroppedPackets: uint16(dropped)}
 }
 
 // All video modes share this sole HDMI reader. Slow audio viewers have bounded
 // queues and cannot stall ALSA capture or steal packets from another viewer.
 var audioHub = struct {
 	sync.Mutex
-	viewers map[*audioViewer]bool
-	running bool
+	viewers  map[*audioViewer]bool
+	running  bool
+	sequence uint64
 }{viewers: make(map[*audioViewer]bool)}
 
 var microphoneOwner = make(chan struct{}, 1)
@@ -71,7 +90,7 @@ func ConnectAudio(c *gin.Context) {
 		}
 	}()
 	client := NewClient(ws, peer)
-	viewer := &audioViewer{peer: peer, track: track, packets: make(chan []byte, 4), done: make(chan struct{})}
+	viewer := &audioViewer{peer: peer, track: track, packets: make(chan audioPacket, 4), done: make(chan struct{})}
 	defer func() {
 		audioHub.Lock()
 		close(viewer.done)
@@ -174,9 +193,11 @@ func sendHDMIAudio() {
 			continue
 		}
 		audioHub.Lock()
+		audioHub.sequence++
+		packet := audioPacket{data: data, sequence: audioHub.sequence}
 		for viewer := range audioHub.viewers {
 			select {
-			case viewer.packets <- data:
+			case viewer.packets <- packet:
 			default:
 			}
 		}
@@ -185,15 +206,17 @@ func sendHDMIAudio() {
 }
 
 func (v *audioViewer) write() {
+	var previous uint64
 	for {
 		select {
 		case <-v.done:
 			return
 		case data := <-v.packets:
-			if err := v.track.WriteSample(media.Sample{Data: data, Duration: 20 * time.Millisecond}); err != nil {
+			if err := v.track.WriteSample(data.sample(previous)); err != nil {
 				_ = v.peer.Close()
 				return
 			}
+			previous = data.sequence
 		}
 	}
 }
