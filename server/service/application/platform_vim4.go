@@ -23,8 +23,8 @@ import (
 )
 
 const (
-	StableURL          = ""
-	PreviewURL         = ""
+	StableURL          = "https://github.com/vim4-kvm/NanoKVM/releases/latest/download"
+	PreviewURL         = StableURL
 	AppDir             = "/opt/vim4-nanokvm"
 	BackupDir          = "/var/lib/vim4-kvm/update-cache/unused-backup"
 	CacheDir           = "/var/lib/vim4-kvm/update-cache"
