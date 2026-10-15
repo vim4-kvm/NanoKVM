@@ -27,6 +27,12 @@ Deploy the matching vim4-amlvenc plugin with the applications: older builds
 limit bitrate to 12000 kbps. Higher targets require more network bandwidth;
 actual output depends on the scene and rate-control mode.
 
+WebRTC sends at most eight UDP segments per offloaded batch. Larger bursts
+produced receiver packet loss during wired 4K60/60 Mbps motion tests despite
+available average bandwidth; keep this bound when tuning syscall overhead.
+Unsupported offload and IPv6 retain the per-packet path. This is a burst bound,
+not congestion control or a guarantee for slower networks.
+
 The Screen → Quality menu offers H.264/H.265 presets from 1 to 60 Mbps and a
 slider in 0.1 Mbps steps. Dragging previews the value; releasing saves it through
 the video settings API. Refreshing reads the saved device bitrate, including

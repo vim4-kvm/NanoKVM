@@ -14,16 +14,18 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Linux caps one UDP GSO send at 64 segments and a 64 KiB datagram.
+// Keep bursts below Linux's 64-segment limit. Large offloaded bursts caused
+// receiver loss at 4K60/60 Mbps on the wired LAN; eight segments retained
+// batching without that loss in H.264/H.265 motion tests.
 const (
-	maxGSOSegments = 64
+	maxGSOSegments = 8
 	maxGSOBytes    = 65000
 	maxDatagram    = 1500
 )
 
 // udpBatcher collects the UDP datagrams pion writes for one video frame and
-// sends equal-sized runs with UDP_SEGMENT. On this board one sendto costs about
-// 12 us of CPU per packet; segmentation offload lets a frame leave at line rate.
+// sends short equal-sized runs with UDP_SEGMENT to amortize send syscalls
+// without releasing an entire frame as one large offloaded burst.
 type udpBatcher struct {
 	*stdnet.Net
 	mu      sync.Mutex
