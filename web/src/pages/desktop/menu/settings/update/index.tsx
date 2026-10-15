@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import semver from 'semver';
 
 import * as api from '@/api/application.ts';
+import { isVIM4 } from '@/lib/platform.ts';
 
 import { CustomServer } from './custom-server.tsx';
 import { Offline } from './offline.tsx';
@@ -47,7 +48,10 @@ export const Update = ({ setIsLocked }: UpdateProps) => {
 
         if (rsp.data?.latest) {
           setLatestVersion(rsp.data.latest);
-          const isLatest = semver.gte(rsp.data.current, rsp.data.latest);
+          // VIM4 releases increment build metadata, which ordinary SemVer ignores.
+          const isLatest = isVIM4
+            ? semver.compareBuild(rsp.data.current, rsp.data.latest) >= 0
+            : semver.gte(rsp.data.current, rsp.data.latest);
           setStatus(isLatest ? 'latest' : 'outdated');
         } else {
           setStatus('latest');
@@ -159,7 +163,7 @@ export const Update = ({ setIsLocked }: UpdateProps) => {
           <Button
             type="link"
             size="small"
-            href="https://github.com/sipeed/NanoKVM/blob/main/CHANGELOG.md"
+            href={isVIM4 ? 'https://github.com/vim4-kvm/NanoKVM/releases' : 'https://github.com/sipeed/NanoKVM/blob/main/CHANGELOG.md'}
             target="_blank"
           >
             CHANGELOG
