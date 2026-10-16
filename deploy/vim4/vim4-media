@@ -135,6 +135,10 @@ def main(args):
         microphone = args[1] == 'on'
     elif len(args) == 2 and args[0] == 'disk' and args[1] in ('on', 'off', 'restore'):
         disk = args[1]
+        # Compatibility with older service units: a saved preference must
+        # never reconnect media that the USB host safely ejected.
+        if disk == 'restore':
+            return
         cdrom, readonly = False, False
     elif len(args) == 4 and args[0] == 'mount' and all(x in ('true', 'false') for x in args[2:]):
         cdrom = args[2] == 'true'
@@ -148,17 +152,11 @@ def main(args):
             if os.fstat(handle.fileno()).st_uid != 0:
                 raise RuntimeError('Invalid media lock owner')
             fcntl.flock(handle, fcntl.LOCK_EX)
-            if disk == 'restore':
-                if not USB_ENABLED.exists():
-                    return
-                # Restarting only the web application need not re-enumerate USB.
-                if (LUN / 'file').read_text().strip() == str(USB_IMAGE):
-                    return
-            if disk in ('on', 'restore'):
+            if disk == 'on':
                 fd = usb_disk_fd()
             if microphone is None:
                 configure(fd, cdrom, readonly)
-                if disk in ('on', 'restore'):
+                if disk == 'on':
                     USB_ENABLED.touch(mode=0o600)
                 else:
                     USB_ENABLED.unlink(missing_ok=True)

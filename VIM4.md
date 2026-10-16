@@ -58,6 +58,11 @@ HDMI source are not implemented. Keep board HDMI, PD, gadget and clock services.
 NanoKVM and JetKVM both use port 8080 and the same hardware. The manager selects
 one; packages preserve that selection. Never delete the active encoder lock.
 
+Starting NanoKVM does not attach the shared USB data disk. Host-ejected media
+stays ejected across application switches and restarts; existing image files
+are retained. Connect it explicitly from the storage/USB controls when needed.
+The legacy `vim4-media disk restore` command is a no-op for older service units.
+
 ## Installation and updates
 
 Use workspace `tools/board.py deploy --exclusive --packages ...`.

@@ -14,6 +14,19 @@ loader.exec_module(media)
 
 
 class MediaTest(unittest.TestCase):
+    def test_service_restore_does_not_reconnect_ejected_or_replace_mounted_media(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'enabled').touch()
+            (root / 'disk.img').write_bytes(b'existing user data')
+            with patch.multiple(media, USB_ENABLED=root / 'enabled', USB_IMAGE=root / 'disk.img'), \
+                    patch.object(media, 'configure') as configure, \
+                    patch.object(media, 'usb_disk_fd') as disk:
+                media.main(['disk', 'restore'])
+                configure.assert_not_called()
+                disk.assert_not_called()
+                self.assertEqual((root / 'disk.img').read_bytes(), b'existing user data')
+
     @unittest.skipUnless(hasattr(os, 'posix_fallocate') and os.geteuid() == 0, 'Linux root helper')
     def test_usb_disk_is_created_once_and_failed_format_leaves_no_image(self):
         with tempfile.TemporaryDirectory() as directory:
