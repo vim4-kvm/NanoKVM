@@ -96,7 +96,12 @@ export const Settings = () => {
         return;
       }
 
-      if (semver.gt(rsp.data.latest, rsp.data.current)) {
+      // Ubuntu package revisions live in build metadata, ignored by semver.gt.
+      if (
+        isVIM4
+          ? semver.compareBuild(rsp.data.latest, rsp.data.current) > 0
+          : semver.gt(rsp.data.latest, rsp.data.current)
+      ) {
         setIsUpdateAvailable(true);
       }
     });

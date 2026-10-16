@@ -18,6 +18,9 @@ try {
     [latest, current, false],
     [latest, latest, false],
     ['2.5.1+vim4.20261015.99', '2.5.1+vim4.20261016.1', true],
+    ['2.5.1+vim4.20261016.1020.dev.9.g49c45f2.dirty', '2.5.1+vim4.20261016.1020', false],
+    ['2.5.1+vim4.20261016.1020.dev.9.g49c45f2.dirty', '2.5.1+vim4.20261016.1022', true],
+    ['2.5.1+vim4.20261016.1020.dev.9.g49c45f2', '2.5.1+vim4.20261017.1', true],
   ]) {
     current = installed; latest = remote;
     await page.goto(url);
