@@ -1,3 +1,4 @@
+import hashlib
 import importlib.machinery
 import importlib.util
 from pathlib import Path
@@ -115,6 +116,26 @@ class EdidTest(unittest.TestCase):
             edid.LOADED.write_text(f'run-1 {block(1, extension()).hex()}\n')
             edid.restore(reclaim=True)
         load.assert_called_once()
+
+    def test_rtk_preset_is_the_board_copy_and_persists(self):
+        # SHA256 recorded with the original in the vim4-kvm board/edid directory.
+        self.assertEqual(hashlib.sha256(edid.validate(edid.RTK_UHD_HDR_EDID)).hexdigest(),
+                         '32c6a60823dd676e848f8423feff1b469d07f5bac52885723dfa70b74cfda33d')
+        with patch.object(edid, 'load') as load:
+            edid.main(['preset', 'RTK-CONTROL'])
+        load.assert_called_once_with(edid.RTK_UHD_HDR_EDID)
+        self.assertEqual(edid.active(), ('RTK-CONTROL', edid.RTK_UHD_HDR_EDID))
+
+    def test_rtk_name_only_accepts_the_rtk_table(self):
+        stdin = unittest.mock.Mock()
+        with patch.object(edid, 'load') as load, patch.object(edid.sys, 'stdin', stdin):
+            stdin.buffer.read.return_value = block()
+            with self.assertRaises(ValueError):
+                edid.main(['apply', 'RTK-CONTROL'])
+            load.assert_not_called()
+            stdin.buffer.read.return_value = edid.RTK_UHD_HDR_EDID
+            edid.main(['apply', 'RTK-CONTROL'])
+        load.assert_called_once_with(edid.RTK_UHD_HDR_EDID)
 
 
 if __name__ == '__main__':

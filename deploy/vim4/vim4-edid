@@ -2,6 +2,8 @@
 """Load and persist the EDID advertised by the KVM HDMI input.
 
 Usage: vim4-edid status | restore | reclaim | preset NAME | apply NAME < edid.bin
+
+Presets: VIM4-4K60 (default), VIM4-1080P60, RTK-CONTROL (RTK UHD HDR 4K60).
 """
 import fcntl
 import os
@@ -28,6 +30,19 @@ PRESETS = {
     'VIM4-4K60': Path('/etc/tvconfig/hdmi/port1_20.bin'),
     'VIM4-1080P60': Path('/etc/tvconfig/hdmi/port1_14.bin'),
 }
+# Unmodified EDID read from a physical RTK UHD HDR display; carried inline so
+# every application offers the same table without a separate data file.
+RTK_UHD_HDR = 'RTK-CONTROL'
+RTK_UHD_HDR_EDID = bytes.fromhex(
+    '00FFFFFFFFFFFF004A8B1A1B000000002B1E0103A20000783E6435A5544F9E27'
+    '125054210800D1C0A9C081C00101010101010101010140D000A0F0703E803020'
+    '350061632100001A000000FC0052544B20554844204844520A20000000FF0064'
+    '656D6F7365742D310A203020000000FD00283D1E873C000A202020202020014F'
+    '020348F151044C5D5E5F606100000000006768696A6BE305C00023097F078301'
+    '0000E50F00000C0067030C001000387867D85DC401788801E606050169694F68'
+    '1A00000101283DE6023A801871382D40582C450061632100001E565E00A0A0A0'
+    '29503020350061632100001E0000000000000000000000000000000000000096'
+)
 DEFAULT = 'VIM4-4K60'
 NAME = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')
 
@@ -125,8 +140,14 @@ def main(args):
             restore(reclaim=True)
         elif len(args) == 2 and args[0] == 'preset' and args[1] in PRESETS:
             apply(args[1], PRESETS[args[1]].read_bytes())
+        elif args == ['preset', RTK_UHD_HDR]:
+            apply(RTK_UHD_HDR, RTK_UHD_HDR_EDID)
         elif len(args) == 2 and args[0] == 'apply' and NAME.match(args[1]) and args[1] not in PRESETS:
-            apply(args[1], sys.stdin.buffer.read(257))
+            edid = sys.stdin.buffer.read(257)
+            # vim4-manager loads its catalogue copy by name; keep the name tied to the table.
+            if args[1] == RTK_UHD_HDR and edid != RTK_UHD_HDR_EDID:
+                raise ValueError('RTK-CONTROL must be the built-in RTK UHD HDR EDID')
+            apply(args[1], edid)
         else:
             raise ValueError('invalid arguments')
 

@@ -23,10 +23,12 @@ export const Edid = () => {
 
   const inputRef = useRef<any>(null);
 
-  // VIM4 offers the receiver's vendor EDID tables; uploads cover other timings.
+  // VIM4 offers the receiver's vendor EDID tables and a captured RTK UHD HDR
+  // display table; uploads cover other timings.
   const edidList = isVIM4
     ? [
         { key: 'VIM4-4K60', width: 3840, height: 2160, rate: '60Hz' },
+        { key: 'RTK-CONTROL', width: 3840, height: 2160, rate: 'RTK UHD HDR 4K60' },
         { key: 'VIM4-1080P60', width: 1920, height: 1080, rate: '60Hz' }
       ]
     : [

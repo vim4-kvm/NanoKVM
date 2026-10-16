@@ -24,7 +24,7 @@ import (
 // root helper may load one into the HDMI receiver.
 var (
 	customEdidDir = "/etc/kvm/edid"
-	edidPresets   = map[string]bool{"VIM4-4K60": true, "VIM4-1080P60": true}
+	edidPresets   = map[string]bool{"VIM4-4K60": true, "VIM4-1080P60": true, "RTK-CONTROL": true}
 	edidName      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,59}\.[Bb][Ii][Nn]$`)
 	edidHeader    = []byte{0, 255, 255, 255, 255, 255, 255, 0}
 )

@@ -6,10 +6,12 @@ import { useTranslation } from 'react-i18next';
 import * as api from '@/api/vim4.ts';
 import { isVIM4 } from '@/lib/platform';
 
-// VIM4 offers the receiver's vendor EDID tables; uploads cover other timings.
+// VIM4 offers the receiver's vendor EDID tables and a captured RTK UHD HDR
+// display table; uploads cover other timings.
 const defaultEdidList = isVIM4
   ? [
       { value: 'VIM4-4K60', label: '3840 x 2160 60Hz' },
+      { value: 'RTK-CONTROL', label: 'RTK UHD HDR 4K60' },
       { value: 'VIM4-1080P60', label: '1920 x 1080 60Hz' }
     ]
   : [
