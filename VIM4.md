@@ -63,6 +63,18 @@ stays ejected across application switches and restarts; existing image files
 are retained. Connect it explicitly from the storage/USB controls when needed.
 The legacy `vim4-media disk restore` command is a no-op for older service units.
 
+The image list also groups other KVM applications' images and every shared data
+disk by source. Foreign images mount read-only (ISO as CD-ROM); data disks mount
+writable from this UI. Delete and rename remain the source application's job.
+The virtual-disk switch still targets only `disk.img`. Both mount paths use the
+board's `vim4media` module and both global locks, and refuse disks being edited
+in the manager. Install the matching board module at
+`/usr/lib/vim4-kvm/python/vim4media.py` before using these helpers.
+An occupied LUN cannot be replaced. Eject is allowed only for a successful mount
+owned by the current NanoKVM process; the helper rechecks its expected path under
+the shared locks. Media attached elsewhere or retained across a restart must be
+ejected through the manager. The legacy disk switch cannot eject another disk.
+
 ## Installation and updates
 
 Use workspace `tools/board.py deploy --exclusive --packages ...`.

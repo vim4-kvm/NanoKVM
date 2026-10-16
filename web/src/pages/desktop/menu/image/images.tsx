@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Button, Modal, notification, Typography } from 'antd';
 import clsx from 'clsx';
 import {
@@ -14,7 +14,10 @@ import { useTranslation } from 'react-i18next';
 
 import * as api from '@/api/storage.ts';
 import { getVirtualDevice, updateVirtualDevice } from '@/api/virtual-device.ts';
+import { isVIM4 } from '@/lib/platform.ts';
 import { client } from '@/lib/websocket.ts';
+
+import { catalogFile, CatalogImage, mediaSources } from './catalog-vim4.ts';
 
 const imageUpdatedEvent = 'nanokvm:image-updated';
 
@@ -30,6 +33,7 @@ export const Images = ({ isOpen, cdrom, setIsMounted }: ImagesProps) => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [images, setImages] = useState<string[]>([]);
+  const [catalog, setCatalog] = useState<Record<string, CatalogImage>>({});
   const [mountingImage, setMountingImage] = useState('');
   const [mountedImage, setMountedImage] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -68,9 +72,17 @@ export const Images = ({ isOpen, cdrom, setIsMounted }: ImagesProps) => {
         }
 
         const files = rsp.data?.files;
+        const entries: CatalogImage[] = rsp.data?.catalog || [];
+        setCatalog(Object.fromEntries(entries.map((entry) => [catalogFile(entry), entry])));
 
         if (files?.length > 0) {
-          setImages(files);
+          setImages(
+            isVIM4
+              ? entries
+                  .sort((a, b) => a.source.localeCompare(b.source) || a.name.localeCompare(b.name))
+                  .map(catalogFile)
+              : files
+          );
           getMountedImage();
         } else {
           setImages([]);
@@ -96,6 +108,10 @@ export const Images = ({ isOpen, cdrom, setIsMounted }: ImagesProps) => {
   // so ask the user before the virtual disk changes on the computer
   function mountImage(image: string) {
     if (mountingImage) return;
+    if (isVIM4) {
+      doMountImage(image);
+      return;
+    }
 
     // unmounting leaves the virtual disk alone
     if (mountedImage === image) {
@@ -147,7 +163,13 @@ export const Images = ({ isOpen, cdrom, setIsMounted }: ImagesProps) => {
     const filename = isMounted ? '' : image;
 
     api
-      .mountImage(filename, cdrom)
+      .mountImage(
+        filename,
+        !isVIM4 ? cdrom : catalog[image]?.disk
+          ? false
+          : cdrom || (catalog[image]?.source !== 'shared' && catalog[image]?.cdrom),
+        isVIM4 ? !catalog[image]?.disk : undefined
+      )
       .then((rsp) => {
         if (rsp.code !== 0) {
           console.log(rsp.msg);
@@ -259,44 +281,65 @@ export const Images = ({ isOpen, cdrom, setIsMounted }: ImagesProps) => {
       )}
 
       <div className="flex max-h-[400px] flex-col overflow-y-auto pb-2">
-        {images.map((image) => (
-          <div
-            key={image}
-            className={clsx(
-              'group flex cursor-pointer select-none items-center space-x-1 rounded px-1 py-2 hover:bg-neutral-700/70',
-              mountedImage === image && 'text-blue-500'
-            )}
-            onClick={() => mountImage(image)}
-          >
-            <div className="flex h-[24px] w-[24px] items-center justify-center">
-              {mountingImage === image ? (
-                <LoaderCircleIcon className="animate-spin" size={18} />
-              ) : (
-                <PackageIcon size={18} />
+        {images.map((image, index) => (
+          <Fragment key={image}>
+            {isVIM4 &&
+              (index === 0 || catalog[images[index - 1]]?.source !== catalog[image]?.source) && (
+                <div className="pt-3 text-xs text-neutral-400">
+                  {mediaSources[catalog[image]?.source] || catalog[image]?.source}
+                </div>
+              )}
+            <div
+              key={image}
+              className={clsx(
+                'group flex cursor-pointer select-none items-center space-x-1 rounded px-1 py-2 hover:bg-neutral-700/70',
+                mountedImage === image && 'text-blue-500'
+              )}
+              onClick={() => mountImage(image)}
+            >
+              <div className="flex h-[24px] w-[24px] items-center justify-center">
+                {mountingImage === image ? (
+                  <LoaderCircleIcon className="animate-spin" size={18} />
+                ) : (
+                  <PackageIcon size={18} />
+                )}
+              </div>
+
+              <div className="flex-1 truncate">{image.replace(/^.*[\\/]/, '')}</div>
+              {isVIM4 && (
+                <span className="text-xs text-neutral-400">
+                  {catalog[image]?.disk ? '可写' : '只读'}
+                </span>
+              )}
+
+              <div className="flex h-[24px] w-[24px] items-center justify-center rounded">
+                {mountedImage === image ? (
+                  <ArrowBigDownDashIcon
+                    size={22}
+                    className="hidden text-red-500 group-hover:block"
+                  />
+                ) : (
+                  <ArrowBigUpDashIcon
+                    size={22}
+                    className="hidden text-blue-500 group-hover:block"
+                  />
+                )}
+              </div>
+
+              {(!isVIM4 || catalog[image]?.source === 'shared') && (
+                <Button
+                  type="text"
+                  size="small"
+                  danger
+                  className="h-[24px] w-[24px] p-0"
+                  icon={<Trash2Icon size={16} />}
+                  disabled={mountedImage === image || isDiskShared}
+                  loading={deletingImage === image}
+                  onClick={(e) => showDeleteModal(e, image)}
+                />
               )}
             </div>
-
-            <div className="flex-1 truncate">{image.replace(/^.*[\\/]/, '')}</div>
-
-            <div className="flex h-[24px] w-[24px] items-center justify-center rounded">
-              {mountedImage === image ? (
-                <ArrowBigDownDashIcon size={22} className="hidden text-red-500 group-hover:block" />
-              ) : (
-                <ArrowBigUpDashIcon size={22} className="hidden text-blue-500 group-hover:block" />
-              )}
-            </div>
-
-            <Button
-              type="text"
-              size="small"
-              danger
-              className="h-[24px] w-[24px] p-0"
-              icon={<Trash2Icon size={16} />}
-              disabled={mountedImage === image || isDiskShared}
-              loading={deletingImage === image}
-              onClick={(e) => showDeleteModal(e, image)}
-            />
-          </div>
+          </Fragment>
         ))}
       </div>
 

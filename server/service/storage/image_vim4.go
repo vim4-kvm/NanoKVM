@@ -6,6 +6,7 @@ import (
 	"NanoKVM-Server/proto"
 	"NanoKVM-Server/service/hid"
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"os"
@@ -22,6 +23,99 @@ const USBDiskImage = "/var/lib/vim4-kvm/usb/disk.img"
 const mountDevice = "/sys/kernel/config/usb_gadget/kvm/functions/mass_storage.disk0/lun.0/file"
 
 var imageMutex sync.Mutex
+var ownedImage string
+
+// mediaOperation must run with imageMutex held. Only this process's successful
+// mount authorizes eject; the helper rechecks the expected path under board locks.
+func mediaOperation(ctx context.Context, args ...string) error {
+	current := mountedImage()
+	if current != ownedImage {
+		ownedImage = ""
+	}
+	eject := args[0] == "eject" || (args[0] == "disk" && args[1] == "off")
+	if eject {
+		if current == "" {
+			return nil
+		}
+		if ownedImage == "" {
+			return errors.New("external media must be ejected in the management panel")
+		}
+		args = append(args, current)
+	} else if current != "" {
+		return errors.New("eject existing media first")
+	}
+	command := append([]string{"-n", "/usr/libexec/vim4-media"}, args...)
+	var output []byte
+	if err := hid.GetHid().Reenumerate(func() error {
+		var err error
+		output, err = exec.CommandContext(ctx, "sudo", command...).Output()
+		return err
+	}); err != nil {
+		return err
+	}
+	ownedImage = ""
+	var result struct {
+		File string `json:"file"`
+	}
+	if err := json.Unmarshal(output, &result); err != nil {
+		return err
+	}
+	ownedImage = result.File
+	return nil
+}
+
+func ToggleDataDisk(ctx context.Context) (bool, error) {
+	imageMutex.Lock()
+	defer imageMutex.Unlock()
+	state := "on"
+	if DataDiskAttached() {
+		state = "off"
+	}
+	err := mediaOperation(ctx, "disk", state)
+	return state == "on", err
+}
+
+type catalogImage struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Source string `json:"source"`
+	Size   int64  `json:"size"`
+	CDROM  bool   `json:"cdrom"`
+	Disk   bool   `json:"disk,omitempty"`
+}
+
+var readCatalog = func(ctx context.Context) ([]catalogImage, error) {
+	data, err := exec.CommandContext(ctx, "sudo", "-n", "/usr/libexec/vim4-media", "catalog").Output()
+	if err != nil {
+		return nil, err
+	}
+	var entries []catalogImage
+	err = json.Unmarshal(data, &entries)
+	return entries, err
+}
+
+func catalogFile(entry catalogImage) string {
+	if entry.Source == "shared" {
+		return filepath.Join(ImageDirectory, strings.TrimPrefix(entry.ID, "shared/"))
+	}
+	return entry.ID
+}
+
+func catalogID(file string) string {
+	if file != "" && !strings.Contains(file, "/") {
+		return "shared/" + file
+	}
+	roots := map[string]string{
+		"shared": ImageDirectory, "data": "/var/lib/vim4-kvm/usb",
+		"jetkvm": "/var/lib/jetkvm/images", "onekvm": "/var/lib/one-kvm/msd", "pikvm": "/var/lib/kvmd/msd",
+	}
+	for source, root := range roots {
+		if strings.HasPrefix(file, root+"/") {
+			return source + "/" + strings.TrimPrefix(file, root+"/")
+		}
+	}
+	return file
+}
 
 func imagePath(name string) (string, error) {
 	return resolveImagePath(ImageDirectory, name)
@@ -48,7 +142,8 @@ func resolveImagePath(directory, name string) (string, error) {
 	}
 	return name, nil
 }
-func mountedImage() string { b, _ := os.ReadFile(mountDevice); return strings.TrimSpace(string(b)) }
+
+var mountedImage = func() string { b, _ := os.ReadFile(mountDevice); return strings.TrimSpace(string(b)) }
 
 // PublishImage serializes publication with mounting/deletion and never replaces
 // an existing image inode that the host may still have open.
@@ -66,23 +161,28 @@ func PublishImage(temp, target string) error {
 func (s *Service) GetImages(c *gin.Context) {
 	var rsp proto.Response
 	files := []string{}
-	entries, err := os.ReadDir(ImageDirectory)
-	if err != nil && !os.IsNotExist(err) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+	entries, err := readCatalog(ctx)
+	if err != nil {
 		rsp.ErrRsp(c, -1, "cannot list images")
 		return
 	}
 	for _, entry := range entries {
-		if path, err := imagePath(entry.Name()); err == nil {
-			files = append(files, path)
-		}
+		files = append(files, catalogFile(entry))
 	}
-	rsp.OkRspWithData(c, proto.GetImagesRsp{Files: files})
+	rsp.OkRspWithData(c, gin.H{"files": files, "catalog": entries})
 }
 func (s *Service) GetMountedImage(c *gin.Context) {
+	imageMutex.Lock()
+	defer imageMutex.Unlock()
 	var rsp proto.Response
 	file := mountedImage()
-	if file == USBDiskImage {
-		file = ""
+	if file != ownedImage {
+		ownedImage = ""
+	}
+	if file != "" && !strings.HasPrefix(file, ImageDirectory+"/") {
+		file = catalogID(file)
 	}
 	rsp.OkRspWithData(c, proto.GetMountedImageRsp{File: file})
 }
@@ -95,19 +195,29 @@ func (s *Service) MountImage(c *gin.Context) {
 	}
 	imageMutex.Lock()
 	defer imageMutex.Unlock()
-	args := []string{"-n", "/usr/libexec/vim4-media", "eject"}
+	args := []string{"eject"}
 	if req.File != "" {
-		path, err := imagePath(req.File)
-		if err != nil {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+		defer cancel()
+		entries, err := readCatalog(ctx)
+		var selected *catalogImage
+		for i := range entries {
+			if entries[i].ID == catalogID(req.File) {
+				selected = &entries[i]
+				break
+			}
+		}
+		if err != nil || selected == nil {
 			rsp.ErrRsp(c, -1, "invalid image")
 			return
 		}
-		readOnly := req.ReadOnly == nil || *req.ReadOnly || req.Cdrom
-		args = []string{"-n", "/usr/libexec/vim4-media", "mount", path, strconv.FormatBool(req.Cdrom), strconv.FormatBool(readOnly)}
+		cdrom := (req.Cdrom || (selected.Source != "shared" && selected.CDROM)) && !selected.Disk
+		readOnly := req.ReadOnly == nil || *req.ReadOnly || cdrom || (selected.Source != "shared" && selected.Source != "data")
+		args = []string{"mount", selected.ID, strconv.FormatBool(cdrom), strconv.FormatBool(readOnly)}
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
 	defer cancel()
-	if err := hid.GetHid().Reenumerate(exec.CommandContext(ctx, "sudo", args...).Run); err != nil {
+	if err := mediaOperation(ctx, args...); err != nil {
 		rsp.ErrRsp(c, -2, "virtual media operation failed")
 		return
 	}

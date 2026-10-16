@@ -141,8 +141,15 @@ func toggleVirtualDeviceVIM4(c *gin.Context) {
 	action := "microphone"
 	enabled := gadgetLinked("uac2.usb0")
 	if req.Device == "disk" {
-		action = "disk"
-		enabled = storage.DataDiskAttached()
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+		defer cancel()
+		on, err := storage.ToggleDataDisk(ctx)
+		if err != nil {
+			rsp.ErrRsp(c, -2, "failed to switch USB disk: "+err.Error())
+			return
+		}
+		rsp.OkRspWithData(c, proto.UpdateVirtualDeviceRsp{On: on})
+		return
 	}
 	if enabled {
 		state = "off"

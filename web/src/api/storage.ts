@@ -11,10 +11,11 @@ export function getMountedImage() {
 }
 
 // mount/unmount image
-export function mountImage(file?: string, cdrom?: boolean) {
+export function mountImage(file?: string, cdrom?: boolean, readOnly?: boolean) {
   const data = {
     file: file ? file : '',
-    cdrom: cdrom
+    cdrom: cdrom,
+    readOnly
   };
   return http.post('/api/storage/image/mount', data);
 }

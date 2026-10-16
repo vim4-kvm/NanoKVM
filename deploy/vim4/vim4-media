@@ -1,13 +1,15 @@
 #!/usr/bin/python3
 """Switch image media, the USB microphone and NCM while retaining HID functions and the PD contract."""
-import fcntl
+import json
 import os
 from pathlib import Path
-import stat
 import subprocess
 import sys
 import tempfile
 import time
+
+sys.path.insert(0, '/usr/lib/vim4-kvm/python')
+import vim4media
 
 IMAGES = Path('/var/lib/vim4-kvm/images')
 GADGET = Path('/sys/kernel/config/usb_gadget/kvm')
@@ -32,28 +34,21 @@ def usb_disk_fd():
         finally:
             os.close(fd)
             os.unlink(temp)
-    fd = os.open(USB_IMAGE, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK)
-    info = os.fstat(fd)
-    if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_size < 512:
-        os.close(fd)
-        raise ValueError('Invalid USB disk backing file')
-    return fd
+    return vim4media.open_image('data/disk.img', readonly=False)
 
 
 def image_fd(name, writable):
+    return vim4media.open_image(image_id(name), readonly=not writable)
+
+
+def image_id(name):
     path = Path(name)
-    if path.parent != IMAGES or path.suffix.lower() not in ('.iso', '.img'):
-        raise ValueError('Image must be a file in the configured image directory')
-    directory = os.open(IMAGES, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    try:
-        fd = os.open(path.name, (os.O_RDWR if writable else os.O_RDONLY) | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
-    finally:
-        os.close(directory)
-    info = os.fstat(fd)
-    if not stat.S_ISREG(info.st_mode) or info.st_size < 512:
-        os.close(fd)
-        raise ValueError('Image must be a regular file of at least 512 bytes')
-    return fd
+    if path.is_absolute():
+        for source, root in {**vim4media.IMAGE_ROOTS, 'data': vim4media.DATA_DIR}.items():
+            if path.is_relative_to(root):
+                return source + '/' + str(path.relative_to(root))
+        raise ValueError('Invalid image path')
+    return name
 
 
 FUNCTIONS = ('ncm.usb0', 'mass_storage.disk0', 'uac2.usb0')
@@ -112,8 +107,14 @@ def configure(fd, cdrom, readonly):
 
     def restore():
         (LUN / 'file').write_text('\n')
-        for key in ('cdrom', 'ro', 'file'):
+        for key in ('cdrom', 'ro'):
             (LUN / key).write_text(old[key] or '\n')
+        if old['file']:
+            restore_fd = image_fd(old['file'], old['ro'] != '1')
+            try:
+                (LUN / 'file').write_text(f'/proc/self/fd/{restore_fd}')
+            finally:
+                os.close(restore_fd)
 
     relink(desired_links(fd is not None, microphone), prepare, restore)
 
@@ -126,14 +127,17 @@ def set_microphone(enabled):
 
 
 def main(args):
+    if args == ['catalog']:
+        print(json.dumps(vim4media.catalog()))
+        return
     fd = None
     microphone = None
     disk = None
-    if args == ['eject']:
+    if len(args) == 2 and args[0] == 'eject':
         cdrom, readonly = False, True
     elif len(args) == 2 and args[0] == 'microphone' and args[1] in ('on', 'off'):
         microphone = args[1] == 'on'
-    elif len(args) == 2 and args[0] == 'disk' and args[1] in ('on', 'off', 'restore'):
+    elif len(args) in (2, 3) and args[0] == 'disk' and args[1] in ('on', 'off', 'restore'):
         disk = args[1]
         # Compatibility with older service units: a saved preference must
         # never reconnect media that the USB host safely ejected.
@@ -142,16 +146,24 @@ def main(args):
         cdrom, readonly = False, False
     elif len(args) == 4 and args[0] == 'mount' and all(x in ('true', 'false') for x in args[2:]):
         cdrom = args[2] == 'true'
-        readonly = cdrom or args[3] == 'true'
-        fd = image_fd(args[1], not readonly)
+        readonly = args[3] == 'true'
+        identifier = image_id(args[1])
+        source = identifier.split('/')[0]
+        cdrom = cdrom or (source != 'shared' and identifier.lower().endswith('.iso'))
+        if source == 'data':
+            cdrom = False
+        readonly = readonly or cdrom or source not in ('shared', 'data')
     else:
-        raise ValueError('Usage: vim4-media eject | mount IMAGE CDROM READONLY | microphone on|off | disk on|off|restore')
+        raise ValueError('Usage: vim4-media eject EXPECTED_PATH | mount IMAGE CDROM READONLY | microphone on|off | disk on|restore | disk off EXPECTED_PATH')
     try:
-        lock = os.open('/run/lock/vim4-media.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-        with os.fdopen(lock, 'r+') as handle:
-            if os.fstat(handle.fileno()).st_uid != 0:
-                raise RuntimeError('Invalid media lock owner')
-            fcntl.flock(handle, fcntl.LOCK_EX)
+        with vim4media.media_locks(wait=True):
+            current = vim4media.LUN_FILE.read_text().strip()
+            if microphone is None:
+                expected = args[1] if args[0] == 'eject' else (args[2] if disk == 'off' and len(args) == 3 else '')
+                if current != expected or (disk == 'off' and expected != str(USB_IMAGE)):
+                    raise ValueError('Media changed or is occupied; safely eject it in the management panel')
+            if args[0] == 'mount':
+                fd = image_fd(identifier, not readonly)
             if disk == 'on':
                 fd = usb_disk_fd()
             if microphone is None:
@@ -161,6 +173,7 @@ def main(args):
                 else:
                     USB_ENABLED.unlink(missing_ok=True)
                 os.sync()
+                print(json.dumps({'file': vim4media.LUN_FILE.read_text().strip()}))
             else:
                 set_microphone(microphone)
     finally:
