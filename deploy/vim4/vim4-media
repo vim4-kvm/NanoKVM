@@ -25,7 +25,7 @@ def usb_disk_fd():
         fd, temp = tempfile.mkstemp(prefix='.disk-', dir=USB_DIR)
         try:
             os.posix_fallocate(fd, 0, USB_SIZE)
-            subprocess.run(['mkfs.vfat', '-F', '32', '-n', 'NanoKVM', f'/proc/self/fd/{fd}'],
+            subprocess.run(['mkfs.vfat', '-F', '32', '-n', 'Vim4KVM', f'/proc/self/fd/{fd}'],
                            pass_fds=(fd,), check=True, capture_output=True)
             os.fsync(fd)
             os.link(temp, USB_IMAGE)

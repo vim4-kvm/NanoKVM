@@ -46,6 +46,7 @@ class MediaTest(unittest.TestCase):
                     finally:
                         os.close(fd)
                     formatter.assert_called_once()
+                    self.assertEqual(formatter.call_args.args[0][3:5], ['-n', 'Vim4KVM'])
 
     @unittest.skipUnless(hasattr(os, 'posix_fallocate') and os.geteuid() == 0, 'Linux root helper')
     def test_usb_disk_does_not_follow_symlinks(self):
