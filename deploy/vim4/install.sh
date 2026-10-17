@@ -20,6 +20,8 @@ for helper in vim4-system vim4-update vim4-edid; do
     visudo -cf "$base/$helper.sudoers"
     install -m 0440 "$base/$helper.sudoers" "/etc/sudoers.d/$helper"
 done
+# Revoke the obsolete helper when upgrading a previous script installation too.
+rm -f /etc/sudoers.d/vim4-tailscale /usr/libexec/vim4-tailscale
 install -d -o khadas -g khadas -m 0700 /var/lib/kvm/update-jobs /var/lib/vim4-kvm/update-cache
 install -d -o khadas -g khadas -m 0700 /var/lib/vim4-kvm/picoclaw
 install -m 0755 "$base/picoclaw" /usr/libexec/vim4-picoclaw
