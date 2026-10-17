@@ -32,16 +32,6 @@ func platformHandler(route string, handler gin.HandlerFunc) gin.HandlerFunc {
 	if action, ok := actions[route]; ok {
 		return systemVIM4(action)
 	}
-	if strings.HasPrefix(route, "POST /tailscale/") {
-		action := strings.TrimPrefix(route, "POST /tailscale/")
-		if action == "login" {
-			return tailscaleLoginVIM4
-		}
-		return tailscaleActionVIM4(action)
-	}
-	if route == "GET /tailscale/status" {
-		return tailscaleStatusVIM4Handler
-	}
 	switch route {
 	case "POST /vm/screen":
 		return setScreenVIM4

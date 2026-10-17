@@ -41,7 +41,7 @@ func TestUbuntuRoutesPreserveAuthenticationAndAdminBoundary(t *testing.T) {
 	networkRouter(r)
 	extensionsRouter(r)
 	platformRouter(r)
-	for _, path := range []string{"/api/network/dns", "/api/network/static-ip", "/api/vm/timezone", "/api/vm/device/virtual", "/api/extensions/tailscale/start", "/api/vm/edid"} {
+	for _, path := range []string{"/api/network/dns", "/api/network/static-ip", "/api/vm/timezone", "/api/vm/device/virtual", "/api/vm/edid"} {
 		for _, authenticated := range []bool{false, true} {
 			req := httptest.NewRequest("POST", path, strings.NewReader(`{}`))
 			req.Header.Set("Content-Type", "application/json")
@@ -57,6 +57,27 @@ func TestUbuntuRoutesPreserveAuthenticationAndAdminBoundary(t *testing.T) {
 			if rsp.Code != want {
 				t.Errorf("%s authenticated=%v: got %d, want %d: %s", path, authenticated, rsp.Code, want, rsp.Body.String())
 			}
+		}
+	}
+}
+
+func TestVIM4TailscaleRoutesAreUnavailable(t *testing.T) {
+	conf := config.GetInstance()
+	previous := conf.Authentication
+	conf.Authentication = "disable"
+	defer func() { conf.Authentication = previous }()
+	r := gin.New()
+	extensionsRouter(r)
+	platformRouter(r)
+	for _, action := range []string{"status", "install", "uninstall", "up", "down", "login", "logout", "start", "stop", "restart"} {
+		method := http.MethodPost
+		if action == "status" {
+			method = http.MethodGet
+		}
+		rsp := httptest.NewRecorder()
+		r.ServeHTTP(rsp, httptest.NewRequest(method, "/api/extensions/tailscale/"+action, nil))
+		if rsp.Code != http.StatusNotFound {
+			t.Errorf("%s: got %d, want 404: %s", action, rsp.Code, rsp.Body.String())
 		}
 	}
 }

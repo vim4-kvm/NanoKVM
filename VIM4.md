@@ -48,6 +48,7 @@ custom values between presets. MJPEG retains separate JPEG quality choices.
 | HID | Native input arbitration, VIM4 reports, close-before-rebind and LED polling |
 | Storage | Validated image uploads/downloads and virtual disk/CD-ROM helper |
 | Ubuntu management | NetworkManager, DNS, chrony, SSH, mDNS, hostname, time and reboot through restricted helpers |
+| Tailscale | Managed for the whole board by vim4-manager; no application menu or API routes |
 | Accounts | Native roles/sessions; existing credentials and disabled-login preference retained; no Ubuntu password changes |
 | Automation | Native MCP/PicoClaw, ARM64 runtime in an application-owned directory |
 | Updates | Validated `vim4-nanokvm` ARM64 deb bundles; no appliance firmware installation |
@@ -106,6 +107,8 @@ PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs node tests/wifi.mjs
 
 Earlier hardware results do not qualify this branch. Video/audio playback,
 USB switching, reboot and fresh-image installation require an exclusive board
-regression. Tailscale login and actual AI execution require user credentials.
+regression. Actual AI execution requires user credentials. Install and log in
+to Tailscale through vim4-manager, whose helper manages the system tailscaled;
+application upgrades preserve the installed package and login state.
 H.265 requires browser decoder support; Direct/microphone require a secure
 context. See `server/service/stream/VIM4.md` for signaling/settings contracts.

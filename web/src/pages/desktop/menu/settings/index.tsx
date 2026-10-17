@@ -60,11 +60,15 @@ export const Settings = () => {
             : []),
           { id: 'network', icon: <NetworkIcon size={16} />, component: <Network /> },
           { id: 'mcp', icon: <BotIcon size={16} />, component: <MCP /> },
-          {
-            id: 'tailscale',
-            icon: <TailscaleIcon />,
-            component: <Tailscale setIsLocked={setIsLocked} />
-          },
+          ...(isVIM4
+            ? []
+            : [
+                {
+                  id: 'tailscale',
+                  icon: <TailscaleIcon />,
+                  component: <Tailscale setIsLocked={setIsLocked} />
+                }
+              ]),
           {
             id: 'update',
             icon: <CircleArrowUpIcon size={16} />,

@@ -15,7 +15,7 @@ install -m 0440 "$base/vim4-video.sudoers" /etc/sudoers.d/vim4-video
 install -m 0755 "$base/vim4-media" /usr/libexec/vim4-media
 visudo -cf "$base/vim4-media.sudoers"
 install -m 0440 "$base/vim4-media.sudoers" /etc/sudoers.d/vim4-media
-for helper in vim4-system vim4-update vim4-edid vim4-tailscale; do
+for helper in vim4-system vim4-update vim4-edid; do
     install -m 0755 "$base/$helper" "/usr/libexec/$helper"
     visudo -cf "$base/$helper.sudoers"
     install -m 0440 "$base/$helper.sudoers" "/etc/sudoers.d/$helper"
