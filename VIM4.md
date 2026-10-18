@@ -57,8 +57,10 @@ Only HDMI and USB-C are connected. ATX, external displays and other unattached
 hardware report unconfigured. HDMI passthrough and disabling the board-owned
 HDMI source are not implemented. Keep board HDMI, PD, gadget and clock services.
 Applications listen on 127.0.0.1:8081 behind vim4-manager's authenticated 8080
-gateway and share the same hardware. Package upgrades migrate only host,
-port.http and proto in server.yaml, preserving other settings and comments.
+gateway and share the same hardware. The VIM4 server enforces host, port.http
+and proto in memory after loading server.yaml, including older configurations.
+It logs any override and disables TLS listeners and HTTP-to-HTTPS redirects;
+package upgrades preserve the existing file without a YAML migration dependency.
 MCP still requires its own API key even when web authentication is disabled.
 The manager selects
 one; packages preserve that selection. Never delete the active encoder lock.
