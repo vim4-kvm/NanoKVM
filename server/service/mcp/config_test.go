@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"NanoKVM-Server/config"
 	"NanoKVM-Server/service/controlmode"
 
 	"github.com/gin-gonic/gin"
@@ -70,6 +71,10 @@ func TestLoadConfigRejectsCorruptJSON(t *testing.T) {
 }
 
 func TestAPIKeyMiddleware(t *testing.T) {
+	conf := config.GetInstance()
+	previousAuthentication := conf.Authentication
+	conf.Authentication = "disable"
+	t.Cleanup(func() { conf.Authentication = previousAuthentication })
 	useTestConfig(t)
 	control := controlmode.NewManager(filepath.Join(t.TempDir(), "mode"), controlmode.ModeOff)
 	gin.SetMode(gin.TestMode)

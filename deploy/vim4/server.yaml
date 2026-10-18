@@ -1,10 +1,11 @@
+host: 127.0.0.1
 proto: http
 port:
-  http: 8080
+  http: 8081
   https: 8443
 logger:
   level: info
   file: stdout
-# Local passwordless operation; Ubuntu account credentials are independent.
+# The loopback backend is authenticated by vim4-manager's gateway.
 authentication: disable
 stun: disable

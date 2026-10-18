@@ -49,14 +49,18 @@ custom values between presets. MJPEG retains separate JPEG quality choices.
 | Storage | Validated image uploads/downloads and virtual disk/CD-ROM helper |
 | Ubuntu management | NetworkManager, DNS, chrony, SSH, mDNS, hostname, time and reboot through restricted helpers |
 | Tailscale | Managed for the whole board by vim4-manager; no application menu or API routes |
-| Accounts | Native roles/sessions; existing credentials and disabled-login preference retained; no Ubuntu password changes |
+| Accounts | vim4-manager gateway login; the loopback backend disables web authentication and hides account settings; no Ubuntu password changes |
 | Automation | Native MCP/PicoClaw, ARM64 runtime in an application-owned directory |
 | Updates | Validated `vim4-nanokvm` ARM64 deb bundles; no appliance firmware installation |
 
 Only HDMI and USB-C are connected. ATX, external displays and other unattached
 hardware report unconfigured. HDMI passthrough and disabling the board-owned
 HDMI source are not implemented. Keep board HDMI, PD, gadget and clock services.
-NanoKVM and JetKVM both use port 8080 and the same hardware. The manager selects
+Applications listen on 127.0.0.1:8081 behind vim4-manager's authenticated 8080
+gateway and share the same hardware. Package upgrades migrate only host,
+port.http and proto in server.yaml, preserving other settings and comments.
+MCP still requires its own API key even when web authentication is disabled.
+The manager selects
 one; packages preserve that selection. Never delete the active encoder lock.
 
 Starting NanoKVM does not attach the shared USB data disk. Host-ejected media

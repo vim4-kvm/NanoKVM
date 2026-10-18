@@ -45,7 +45,7 @@ def main():
     os.umask(0o077)
     HOME_DIR.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, PICOCLAW_HOME=str(HOME_DIR))
-    env.setdefault('NANOKVM_BRIDGE_BASE_URL', 'http://127.0.0.1:8080')
+    env.setdefault('NANOKVM_BRIDGE_BASE_URL', 'http://127.0.0.1:8081')
     with (HOME_DIR / '.lifecycle.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         command = sys.argv[1]

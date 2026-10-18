@@ -42,6 +42,7 @@ export const Settings = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
+  const [authenticationDisabled, setAuthenticationDisabled] = useState(isVIM4);
   const [currentTab, setCurrentTab] = useState('about');
   const scrollViewportRef = useRef<HTMLDivElement>(null);
 
@@ -76,8 +77,21 @@ export const Settings = () => {
           }
         ]
       : []),
-    { id: 'account', icon: <UserRoundIcon size={18} />, component: <Account /> }
+    ...(!isVIM4 || !authenticationDisabled
+      ? [{ id: 'account', icon: <UserRoundIcon size={18} />, component: <Account /> }]
+      : [])
   ];
+
+  useEffect(() => {
+    if (!isVIM4) return;
+    fetch('/api/platform')
+      .then((response) => {
+        if (!response.ok) throw new Error('Platform unavailable');
+        return response.json();
+      })
+      .then((platform) => setAuthenticationDisabled(platform.authentication === 'disable'))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!isAdmin) return;

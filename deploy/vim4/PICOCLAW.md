@@ -36,7 +36,7 @@ Package/install hooks:
   shutdown. Runtime intent reconciliation restores it when requested.
 - Keep any configured `PICOCLAW_HOME` identical for server and helper. The VIM4
   default is `/var/lib/vim4-kvm/picoclaw/home`. The helper supplies
-  `NANOKVM_BRIDGE_BASE_URL=http://127.0.0.1:8080`; set it explicitly if the
+  `NANOKVM_BRIDGE_BASE_URL=http://127.0.0.1:8081`; set it explicitly if the
   application port is changed. The MCP URL itself uses configured HTTP port.
 
 There is no additional systemd service or sudoers entry. Configuration, model
