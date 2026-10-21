@@ -139,6 +139,30 @@ func TestOldTransportCannotStopNewSession(t *testing.T) {
 	}
 }
 
+func TestBoardChangeWaitsForCaptureReleaseAndUnlocksAfterFailure(t *testing.T) {
+	canceled, done := make(chan struct{}), make(chan struct{})
+	action := make(chan struct{}, 1)
+	k := KvmVision{session: &captureSession{cancel: func() { close(canceled) }, done: done}}
+	wanted := errors.New("board action rejected")
+	result := make(chan error, 1)
+	go func() {
+		result <- k.WithVideoPaused(func() error { action <- struct{}{}; return wanted })
+	}()
+	<-canceled
+	select {
+	case <-action:
+		t.Fatal("board action ran before capture released its DMA lease")
+	default:
+	}
+	close(done)
+	if err := <-result; !errors.Is(err, wanted) || k.session != nil {
+		t.Fatalf("capture retained after action failure: %v", err)
+	}
+	if err := k.WithVideoPaused(func() error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSameCodecTransportSwitchKeepsSessionAndOldStopCannotKillIt(t *testing.T) {
 	for _, modes := range [][2]uint8{{STREAM_TYPE_H264_WEBRTC, STREAM_TYPE_H264_DIRECT}, {STREAM_TYPE_H265_WEBRTC, STREAM_TYPE_H265_DIRECT}} {
 		k := newKvmVision()

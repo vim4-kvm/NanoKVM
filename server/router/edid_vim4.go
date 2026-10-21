@@ -3,6 +3,7 @@
 package router
 
 import (
+	"NanoKVM-Server/common"
 	"NanoKVM-Server/proto"
 	"bytes"
 	"context"
@@ -24,7 +25,7 @@ import (
 // root helper may load one into the HDMI receiver.
 var (
 	customEdidDir = "/etc/kvm/edid"
-	edidPresets   = map[string]bool{"VIM4-4K60": true, "VIM4-1080P60": true, "RTK-CONTROL": true}
+	edidPresets   = map[string]bool{"VIM4-4K60": true, "VIM4-1080P60": true, "VIM4-1080P60-SDR8": true, "RTK-CONTROL": true}
 	edidName      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,59}\.[Bb][Ii][Nn]$`)
 	edidHeader    = []byte{0, 255, 255, 255, 255, 255, 255, 0}
 )
@@ -92,15 +93,25 @@ func switchEdidVIM4(c *gin.Context) {
 		return
 	}
 	var err error
+	var data []byte
+	var args []string
 	if edidPresets[req.Edid] {
-		_, err = edidHelper(c.Request.Context(), nil, "preset", req.Edid)
+		args = []string{"preset", req.Edid}
 	} else {
-		var data []byte
 		if data, err = readCustomEdid(req.Edid); err != nil {
 			rsp.ErrRsp(c, -3, "invalid EDID")
 			return
 		}
-		_, err = edidHelper(c.Request.Context(), data, "apply", req.Edid)
+		args = []string{"apply", req.Edid}
+	}
+	apply := func() error {
+		_, err := edidHelper(c.Request.Context(), data, args...)
+		return err
+	}
+	if os.Getenv("VIM4_VIDEO_BACKEND") == "wave5" {
+		err = common.GetKvmVision().WithVideoPaused(apply)
+	} else {
+		err = apply()
 	}
 	if err != nil {
 		rsp.ErrRsp(c, -4, "failed to switch EDID")

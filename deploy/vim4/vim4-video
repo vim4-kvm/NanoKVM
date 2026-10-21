@@ -20,6 +20,9 @@ trap 'rm -f "$pending"' EXIT HUP INT TERM
 printf 'HDMI_WIDTH=%s\nHDMI_HEIGHT=%s\n' "$1" "$2" > "$pending"
 chmod 0644 "$pending"
 mv "$pending" "$config"
+case "$(uname -r)" in
+ 7.*) exit 0 ;; # The application applies VDIN scaling through V4L2 S_FMT.
+esac
 if ! systemctl restart vim4-kvm-hdmi.service; then
  if [ "$existed" = 1 ]; then
   printf '%s\n' "$previous" > "$config"

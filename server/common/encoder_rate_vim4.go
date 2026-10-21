@@ -18,8 +18,35 @@ import (
 // reports hundredths of a frame/second; use it until capture exposes this in
 // negotiated caps. A requested FPS is a drop-only ceiling, never an upsample.
 func encoderFrameRate(limit int) int {
+	return hdmiEncoderFrameRate(hdmiInfo(), limit)
+}
+
+func wave5Backend() bool { return os.Getenv("VIM4_VIDEO_BACKEND") == "wave5" }
+
+func captureFactory() string {
+	if wave5Backend() {
+		return "vim4v4l2src"
+	}
+	return "vfmcapsrc"
+}
+
+func encoderFactory() string {
+	if wave5Backend() {
+		return "vim4wave5enc"
+	}
+	return "amlvenc"
+}
+
+func hdmiInfo() string {
+	if wave5Backend() {
+		rate, ok := gstcapture.IntPropertyValue(captureFactory(), "input-rate")
+		if !ok {
+			return ""
+		}
+		return fmt.Sprintf("Frame Rate: %d\n", rate)
+	}
 	info, _ := os.ReadFile("/sys/class/hdmirx/hdmirx0/info")
-	return hdmiEncoderFrameRate(string(info), limit)
+	return string(info)
 }
 
 func hdmiEncoderFrameRate(info string, limit int) int {
@@ -63,8 +90,7 @@ func watchEncoderRate(ctx context.Context, initial, limit int, changed context.C
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			info, _ := os.ReadFile("/sys/class/hdmirx/hdmirx0/info")
-			rate := knownHDMIFrameRate(string(info), limit)
+			rate := knownHDMIFrameRate(hdmiInfo(), limit)
 			if change.observe(initial, rate) {
 				log.Infof("VIM4 HDMI budget changed from %d to %d fps; reopening capture", initial, rate)
 				changed()
@@ -96,7 +122,7 @@ func encoderExperiment(property, environment string, minimum int) (int, bool) {
 		return 0, false
 	}
 	value, err := strconv.Atoi(raw)
-	low, high, supported := gstcapture.IntPropertyRange("amlvenc", property)
+	low, high, supported := gstcapture.IntPropertyRange(encoderFactory(), property)
 	if err != nil || !supported || value < minimum || value < low || value > high {
 		log.Warnf("Ignoring invalid or unsupported %s", environment)
 		return 0, false

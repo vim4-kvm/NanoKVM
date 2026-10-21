@@ -12,7 +12,8 @@ const defaultEdidList = isVIM4
   ? [
       { value: 'VIM4-4K60', label: '3840 x 2160 60Hz' },
       { value: 'RTK-CONTROL', label: 'RTK UHD HDR 4K60' },
-      { value: 'VIM4-1080P60', label: '1920 x 1080 60Hz' }
+      { value: 'VIM4-1080P60', label: '1920 x 1080 60Hz' },
+      { value: 'VIM4-1080P60-SDR8', label: '1920 x 1080 60Hz SDR 8-bit' }
     ]
   : [
       { value: 'E18-4K30FPS', label: '3840 x 2160 30Hz' },

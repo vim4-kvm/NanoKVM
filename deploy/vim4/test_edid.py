@@ -27,6 +27,7 @@ def extension():
 
 class EdidTest(unittest.TestCase):
     def setUp(self):
+        self.enterContext(patch.object(edid.platform, 'release', return_value='5.15-test'))
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         state = patch.object(edid, 'STATE', Path(self.directory.name))

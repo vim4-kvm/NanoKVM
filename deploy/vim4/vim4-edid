@@ -7,6 +7,7 @@ Presets: VIM4-4K60 (default), VIM4-1080P60, RTK-CONTROL (RTK UHD HDR 4K60).
 """
 import fcntl
 import os
+import platform
 from pathlib import Path
 import re
 import subprocess
@@ -29,6 +30,7 @@ LOADED = Path('/run/vim4-edid.loaded')
 PRESETS = {
     'VIM4-4K60': Path('/etc/tvconfig/hdmi/port1_20.bin'),
     'VIM4-1080P60': Path('/etc/tvconfig/hdmi/port1_14.bin'),
+    'VIM4-1080P60-SDR8': Path('/usr/share/vim4-kvm/edid/1080p60-sdr8.bin'),
 }
 # Unmodified EDID read from a physical RTK UHD HDR display; carried inline so
 # every application offers the same table without a separate data file.
@@ -67,6 +69,11 @@ def tvserver_run():
 
 
 def load(edid):
+    if platform.release().startswith('7.'):
+        sys.path.insert(0, '/usr/lib/vim4-kvm/python')
+        from vim4video import set_edid
+        set_edid(edid[:128 * (1 + edid[126])])
+        return
     # The same EDID fills the 1.4 and 2.0 slots so tvserver's later version
     # selection cannot switch the host back to a vendor table.
     with EDID_WITH_PORT.open('wb', buffering=0) as sysfs:
@@ -112,6 +119,11 @@ def restore(reclaim=False):
     JetKVM loaded; capture restarts must not, as JetKVM may be running.
     """
     name, edid = active()
+    if platform.release().startswith('7.'):
+        # The receiver checks the actual table and leaves HPD untouched for
+        # identical data, including during an active DMA lease.
+        load(edid or validate(PRESETS[DEFAULT].read_bytes()))
+        return
     run = tvserver_run()
     loaded = LOADED.read_text().strip() if LOADED.exists() else ''
     if run and loaded.startswith(f'{run} ') and not reclaim:

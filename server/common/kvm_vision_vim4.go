@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -215,6 +214,15 @@ func (k *KvmVision) StopVideo() {
 	defer k.mu.Unlock()
 	k.stopLocked()
 }
+
+// WithVideoPaused keeps frame readers and snapshots from reopening capture
+// until the receiver has applied a board-level HDMI change.
+func (k *KvmVision) WithVideoPaused(action func() error) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.stopLocked()
+	return action()
+}
 func (k *KvmVision) stopLocked() {
 	if k.session != nil {
 		k.session.cancel()
@@ -291,8 +299,7 @@ func (k *KvmVision) updateControl(update func(*VideoSettings)) int {
 func (k *KvmVision) SetFrameDetect(uint8) {}
 
 func (k *KvmVision) HasHDMISignal() bool {
-	info, _ := os.ReadFile("/sys/class/hdmirx/hdmirx0/info")
-	return knownHDMIFrameRate(string(info), 0) > 0
+	return knownHDMIFrameRate(hdmiInfo(), 0) > 0
 }
 
 // vbrQPMax caps quantization in VBR mode. With moving 4K desktop content and a
@@ -305,7 +312,11 @@ func (s VideoSettings) pipeline(mode uint8) string {
 }
 
 func (s VideoSettings) pipelineAtRate(mode uint8, rate int) string {
-	p := "vfmcapsrc ! queue max-size-buffers=3 max-size-bytes=0 max-size-time=0 ! "
+	p := captureFactory()
+	if wave5Backend() {
+		p += fmt.Sprintf(" height=%d", s.Height)
+	}
+	p += " ! queue max-size-buffers=3 max-size-bytes=0 max-size-time=0 ! "
 	_, _, hardwareJPEG := gstcapture.IntPropertyRange("vim4jpegenc", "quality")
 	fps := s.FPS
 	if mode == STREAM_TYPE_MJPEG && !hardwareJPEG && (fps == 0 || fps > 10) {
@@ -323,7 +334,7 @@ func (s VideoSettings) pipelineAtRate(mode uint8, rate int) string {
 	} else {
 		// Coalesce PLIs from several viewers into one forced IDR.
 		budget := ""
-		if min, max, ok := gstcapture.IntPropertyRange("amlvenc", "framerate"); ok && rate >= min && rate <= max {
+		if min, max, ok := gstcapture.IntPropertyRange(encoderFactory(), "framerate"); ok && rate >= min && rate <= max {
 			budget = fmt.Sprintf(" framerate=%d", rate)
 		} else {
 			log.Warnf("amlvenc cannot set %d fps budget; using plugin default (bitrate may differ)", rate)
@@ -333,7 +344,7 @@ func (s VideoSettings) pipelineAtRate(mode uint8, rate int) string {
 		}
 		budget += encoderExperimentOptions()
 		if s.RateControl == "vbr" {
-			if _, _, ok := gstcapture.IntPropertyRange("amlvenc", "qp-max"); ok {
+			if _, _, ok := gstcapture.IntPropertyRange(encoderFactory(), "qp-max"); ok {
 				budget += fmt.Sprintf(" qp-max=%d", vbrQPMax)
 			} else {
 				log.Warn("amlvenc has no qp-max; VBR falls back to target-bitrate control")
@@ -343,7 +354,7 @@ func (s VideoSettings) pipelineAtRate(mode uint8, rate int) string {
 		if streamCodec(mode) == codecH265 {
 			codec = "h265"
 		}
-		p += fmt.Sprintf("amlvenc bitrate=%d gop=%d%s min-force-key-unit-interval=250000000 ! video/x-%s ! %sparse config-interval=-1 ! video/x-%s,stream-format=byte-stream,alignment=au ! ", s.Bitrate, s.GOP, budget, codec, codec, codec)
+		p += fmt.Sprintf("%s bitrate=%d gop=%d%s min-force-key-unit-interval=250000000 ! video/x-%s ! %sparse config-interval=-1 ! video/x-%s,stream-format=byte-stream,alignment=au ! ", encoderFactory(), s.Bitrate, s.GOP, budget, codec, codec, codec)
 	}
 	return p + "appsink name=frames sync=false"
 }

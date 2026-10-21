@@ -29,7 +29,8 @@ export const Edid = () => {
     ? [
         { key: 'VIM4-4K60', width: 3840, height: 2160, rate: '60Hz' },
         { key: 'RTK-CONTROL', width: 3840, height: 2160, rate: 'RTK UHD HDR 4K60' },
-        { key: 'VIM4-1080P60', width: 1920, height: 1080, rate: '60Hz' }
+        { key: 'VIM4-1080P60', width: 1920, height: 1080, rate: '60Hz' },
+        { key: 'VIM4-1080P60-SDR8', width: 1920, height: 1080, rate: '60Hz SDR 8-bit' }
       ]
     : [
         { key: 'E18-4K30FPS', width: 3840, height: 2160, rate: '30Hz' },

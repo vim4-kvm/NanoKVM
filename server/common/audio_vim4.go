@@ -6,6 +6,7 @@ import (
 	"NanoKVM-Server/internal/gstcapture"
 	"context"
 	"errors"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"sync"
 	"time"
@@ -30,7 +31,11 @@ func (k *KvmVision) ReadAudio() ([]byte, int) {
 		go func() {
 			defer close(s.done)
 			defer close(s.frames)
-			err := gstcapture.Run(ctx, "alsasrc device=hw:AMLAUGESOUND,0 buffer-time=40000 latency-time=10000 ! audio/x-raw,format=S16LE,rate=48000,channels=2 ! audioconvert ! opusenc frame-size=20 bitrate=96000 ! appsink name=frames sync=false", nil, func(f gstcapture.Frame) error {
+			device := "hw:AMLAUGESOUND,0"
+			if wave5Backend() {
+				device = "hw:VIM4HDMIRX,0"
+			}
+			err := gstcapture.Run(ctx, fmt.Sprintf("alsasrc device=%s buffer-time=40000 latency-time=10000 ! audio/x-raw,format=S16LE,rate=48000,channels=2 ! audioconvert ! opusenc frame-size=20 bitrate=96000 ! appsink name=frames sync=false", device), nil, func(f gstcapture.Frame) error {
 				select {
 				case s.frames <- f:
 					return nil

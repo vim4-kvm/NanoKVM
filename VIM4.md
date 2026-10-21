@@ -4,6 +4,16 @@ The `vim4` branch keeps NanoKVM's desktop, accounts/roles, MCP, PicoClaw,
 control regions and mobile gestures. Build-tagged adapters replace hardware and
 system operations on Ubuntu; the default build retains libkvm.
 
+The board's `vim4-kvm-run` launcher selects vendor capture/encoding on 5.15 and
+`vim4v4l2src` / `vim4wave5enc` on the matched 7.x kernel. HDMI audio selects the
+corresponding ALSA card. Both kernels use the same NanoKVM configuration and
+image catalog; install the board package providing `vim4-runtime-api-1` with
+the matching mainline plugins before updating this application.
+
+Native EDID changes on 7.x release capture before programming the receiver.
+Use `VIM4-1080P60-SDR8` for 1080p: the original vendor preset can make macOS
+select an unsupported 10-bit transport. Original and uploaded tables are retained.
+
 ## Build
 
 Use the adjacent vim4-kvm workspace and its pinned Ubuntu ARM64 builder:

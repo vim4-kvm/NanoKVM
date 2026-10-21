@@ -78,7 +78,7 @@ func (k *KvmVision) Snapshot(ctx context.Context) ([]byte, error) {
 	k.mu.Lock()
 	if k.session == nil {
 		defer k.mu.Unlock()
-		return snapshotJPEG(ctx, "vfmcapsrc num-buffers=1 ! videoconvert", k.settings.Width, k.settings.Height)
+		return snapshotJPEG(ctx, captureFactory()+" num-buffers=1 ! videoconvert", k.settings.Width, k.settings.Height)
 	}
 	codec := streamCodec(k.StreamType)
 	k.mu.Unlock()

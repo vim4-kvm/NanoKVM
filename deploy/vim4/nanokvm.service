@@ -3,7 +3,7 @@ Description=VIM4 NanoKVM web application
 After=network-online.target vim4-kvm-hdmi.service vim4-kvm-gadget.service vim4-kvm-pd.service
 Wants=vim4-kvm-hdmi.service
 Requires=vim4-kvm-gadget.service vim4-kvm-pd.service
-Conflicts=vim4-kvm.service
+Conflicts=vim4-kvm.service one-kvm.service vim4-pikvm.service
 
 [Service]
 User=khadas
@@ -11,10 +11,11 @@ Group=khadas
 SupplementaryGroups=video input dialout audio
 RuntimeDirectory=vim4-nanokvm
 RuntimeDirectoryMode=0700
+StateDirectory=vim4-nanokvm
 WorkingDirectory=/opt/vim4-nanokvm
 # JetKVM may have loaded its own EDID; a failure keeps the current table.
 ExecStartPre=-+/usr/libexec/vim4-edid reclaim
-ExecStart=/opt/vim4-nanokvm/NanoKVM-Server
+ExecStart=/usr/libexec/vim4-kvm-run nanokvm
 Restart=on-failure
 RestartSec=3
 PrivateTmp=false
