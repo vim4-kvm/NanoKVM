@@ -23,9 +23,16 @@ func encoderFrameRate(limit int) int {
 
 func wave5Backend() bool { return os.Getenv("VIM4_VIDEO_BACKEND") == "wave5" }
 
+func secondaryHDMICapture() bool {
+	return !wave5Backend() && os.Getenv("VIM4_SECONDARY_HDMI_CAPTURE") == "1"
+}
+
 func captureFactory() string {
 	if wave5Backend() {
 		return "vim4v4l2src"
+	}
+	if secondaryHDMICapture() {
+		return "vim4vdin1src"
 	}
 	return "vfmcapsrc"
 }

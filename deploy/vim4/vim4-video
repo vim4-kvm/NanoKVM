@@ -8,6 +8,10 @@ case "$1:$2" in
 esac
 exec 9>/run/lock/vim4-video.lock
 flock -x 9
+if [ -r /sys/module/aml_media/parameters/vdin0_native_hdr ] &&
+   [ "$(cat /sys/module/aml_media/parameters/vdin0_native_hdr)" = Y ]; then
+ exit 0 # VDIN1 S_FMT owns scaling; do not persist changes to the primary display.
+fi
 config=/etc/default/vim4-kvm-hdmi
 previous=
 existed=0

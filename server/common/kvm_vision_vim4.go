@@ -313,7 +313,7 @@ func (s VideoSettings) pipeline(mode uint8) string {
 
 func (s VideoSettings) pipelineAtRate(mode uint8, rate int) string {
 	p := captureFactory()
-	if wave5Backend() {
+	if wave5Backend() || secondaryHDMICapture() {
 		p += fmt.Sprintf(" height=%d", s.Height)
 	}
 	p += " ! queue max-size-buffers=3 max-size-bytes=0 max-size-time=0 ! "

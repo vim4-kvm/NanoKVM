@@ -94,6 +94,12 @@ ejected through the manager. The legacy disk switch cannot eject another disk.
 
 ## Installation and updates
 
+On native-HDR 5.15, the launcher enables `VIM4_SECONDARY_HDMI_CAPTURE=1` and
+the shared `vim4vdin1src` captures SDR from VDIN1 for H.264, H.265, MJPEG and
+snapshots. Resolution controls scale VDIN1 without restarting the HDR display.
+Deploy the matching board, capture and encoder packages before this application;
+the shared private standard V4L2 plugin must precede the system vendor plugin.
+
 Use workspace `tools/board.py deploy --exclusive --packages ...`.
 Installed paths and deb identity remain `/opt/vim4-nanokvm`, `nanokvm.service`
 and `vim4-nanokvm` for upgrades. Packages include `/usr/libexec` helpers, matching
