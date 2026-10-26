@@ -4,7 +4,7 @@
 Usage: vim4-edid status | restore | reclaim | preset NAME | apply NAME < edid.bin
 
 Presets: VIM4-4K60 (default), VIM4-1080P60, VIM4-1080P60-SDR8,
-RTK-CONTROL (RTK UHD HDR: 4K60, 1080p120 and VRR).
+RTK-CONTROL (RTK UHD HDR: 4K60, 1080p/1440p120, ultrawide and VRR).
 The former RTK-1080P120 name remains an alias for saved clients.
 """
 import fcntl
@@ -39,24 +39,27 @@ PRESETS = {
 RTK_UHD_HDR = 'RTK-CONTROL'
 RTK_LEGACY = 'RTK-1080P120'
 RTK_UHD_HDR_EDID = bytes.fromhex(
-    '00ffffffffffff004a8b1a1b000000002b1e0103a20000783e6435a5544f'
-    '9e27125054210800d1c0a9c081c00101010101010101010140d000a0f070'
-    '3e803020350061632100001a000000fc0052544b20554844204844520a20'
-    '000000ff0064656d6f7365742d310a203020000000fd0028781e873c000a'
-    '2020202020200114020342f151044c5d5e5f60613f400000006768696a6b'
-    'e305c00023097f0783010000e50f00000c0067030c00100038786ad85dc4'
-    '01788801003078e606050169694f023a801871382d40582c450061632100'
-    '001e565e00a0a0a029503020350061632100001e00000000000000000000'
-    '00000000000000000000000000000041'
+    '00ffffffffffff004a8b1a1b000000002b1e0103a20000783e6435a5544f9e27'
+    '125054210800d1c0a9c081c00101010101010101010140d000a0f0703e803020'
+    '350061632100001a000000fc0052544b20554844204844520a20000000ff0064'
+    '656d6f7365742d310a203020000000fd0028781eb43c000a20202020202002e6'
+    '020342f151044c5d5e5f60613f400000006768696a6be305c00023097f078301'
+    '0000e50f00000c0067030c00100038786ad85dc401788801003078e606050169'
+    '694f023a801871382d40582c450061632100001e565e00a0a0a0295030203500'
+    '61632100001e0000000000000000000000000000000000000000000000000041'
+    '02030600415aacbc00a0a0a029503020350061632100001ee77c70a0d0a02950'
+    '30203a0061632100001e00000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000028'
 )
 DEFAULT = 'VIM4-4K60'
 NAME = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')
 
 
 def validate(edid):
-    """Return the EDID padded to the driver's 256-byte slot."""
-    if len(edid) not in (128, 256):
-        raise ValueError('EDID must contain one or two 128-byte blocks')
+    """Validate up to four EDID blocks; pad a base-only table for old callers."""
+    if len(edid) not in (128, 256, 384, 512):
+        raise ValueError('EDID must contain one to four 128-byte blocks')
     if edid[:8] != bytes([0, 255, 255, 255, 255, 255, 255, 0]):
         raise ValueError('missing EDID header')
     if edid[126] != len(edid) // 128 - 1:
@@ -64,7 +67,19 @@ def validate(edid):
     for offset in range(0, len(edid), 128):
         if sum(edid[offset:offset + 128]) % 256:
             raise ValueError('EDID block checksum mismatch')
-    return edid + bytes(256 - len(edid))
+    return edid + bytes(max(256 - len(edid), 0))
+
+
+def driver_payload(edid):
+    """Pack the 5.15 port header and separate HDMI 1.4/2.0 slots."""
+    if len(edid) <= 256:
+        return bytes([PORT + 1]) + edid + edid
+    # Type 2 is 256+512, not two consecutive variable-sized tables. Keep
+    # the first CTA for HDMI 1.4 and expose all timings in the 2.0 slot.
+    legacy = bytearray(edid[:256])
+    legacy[126] = 1
+    legacy[127] = -sum(legacy[:127]) % 256
+    return bytes([0x20 | (PORT + 1)]) + legacy + edid.ljust(512, b'\0')
 
 
 def tvserver_run():
@@ -81,7 +96,7 @@ def load(edid):
     # The same EDID fills the 1.4 and 2.0 slots so tvserver's later version
     # selection cannot switch the host back to a vendor table.
     with EDID_WITH_PORT.open('wb', buffering=0) as sysfs:
-        sysfs.write(bytes([PORT + 1]) + edid + edid)
+        sysfs.write(driver_payload(edid))
     fd = os.open(HDMIRX, os.O_RDWR)
     try:
         fcntl.ioctl(fd, HDMI_IOC_EDID_UPDATE_WITH_PORT, bytes([PORT + 1]))
@@ -164,7 +179,7 @@ def main(args):
         elif len(args) == 2 and args[0] == 'preset' and args[1] in (RTK_UHD_HDR, RTK_LEGACY):
             apply(RTK_UHD_HDR, RTK_UHD_HDR_EDID)
         elif len(args) == 2 and args[0] == 'apply' and NAME.match(args[1]) and args[1] not in PRESETS:
-            edid = sys.stdin.buffer.read(257)
+            edid = sys.stdin.buffer.read(513)
             # vim4-manager loads its catalogue copy by name; keep the name tied to the table.
             if args[1] == RTK_UHD_HDR and edid != RTK_UHD_HDR_EDID:
                 raise ValueError('RTK-CONTROL must be the built-in RTK UHD HDR EDID')

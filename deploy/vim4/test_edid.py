@@ -46,9 +46,22 @@ class EdidTest(unittest.TestCase):
         self.assertEqual(edid.validate(block(1, extension())), block(1, extension()))
         broken = bytearray(block())
         broken[20] ^= 1
-        for value in (b'', block()[:127], block(1), block(0, extension()), bytes(broken), block(2, extension() * 2)):
+        self.assertEqual(edid.validate(block(2, extension() * 2)), block(2, extension() * 2))
+        for value in (b'', block()[:127], block(1), block(0, extension()), bytes(broken), block(3, extension() * 2)):
             with self.subTest(size=len(value)), self.assertRaises(ValueError):
                 edid.validate(value)
+
+    def test_extended_table_has_valid_legacy_and_full_driver_slots(self):
+        data = block(2, extension() * 2)
+        payload = edid.driver_payload(data)
+        self.assertEqual(len(payload), 769)
+        self.assertEqual(payload[0], 0x20 | (edid.PORT + 1))
+        legacy, full = payload[1:257], payload[257:]
+        self.assertEqual(legacy[126], 1)
+        self.assertEqual(sum(legacy[:128]) % 256, 0)
+        self.assertEqual(legacy[128:], data[128:256])
+        self.assertEqual(full[:384], data)
+        self.assertEqual(full[384:], bytes(128))
 
     def test_failed_load_is_not_persisted(self):
         with patch.object(edid, 'load', side_effect=OSError('ioctl failed')), self.assertRaises(OSError):
@@ -121,7 +134,7 @@ class EdidTest(unittest.TestCase):
     def test_rtk_preset_is_the_board_copy_and_persists(self):
         # Shared qualified RTK profile; selecting its existing name loads VRR.
         self.assertEqual(hashlib.sha256(edid.validate(edid.RTK_UHD_HDR_EDID)).hexdigest(),
-                         '45ed44250763f39561961829ff5f9f5f18a8fba6847afd088f8aab2636ceaf45')
+                         'ec7f330a18d36bed31f4de4ce104fa4e8844f1ef9d6dbdd89a2ab8f955792f92')
         with patch.object(edid, 'load') as load:
             edid.main(['preset', 'RTK-CONTROL'])
         load.assert_called_once_with(edid.RTK_UHD_HDR_EDID)
