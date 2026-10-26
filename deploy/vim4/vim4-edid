@@ -3,7 +3,8 @@
 
 Usage: vim4-edid status | restore | reclaim | preset NAME | apply NAME < edid.bin
 
-Presets: VIM4-4K60 (default), VIM4-1080P60, RTK-CONTROL (RTK UHD HDR 4K60).
+Presets: VIM4-4K60 (default), VIM4-1080P60, VIM4-1080P60-SDR8,
+RTK-CONTROL (original RTK UHD HDR 4K60), RTK-1080P120 (experimental derivative).
 """
 import fcntl
 import os
@@ -31,6 +32,7 @@ PRESETS = {
     'VIM4-4K60': Path('/etc/tvconfig/hdmi/port1_20.bin'),
     'VIM4-1080P60': Path('/etc/tvconfig/hdmi/port1_14.bin'),
     'VIM4-1080P60-SDR8': Path('/usr/share/vim4-kvm/edid/1080p60-sdr8.bin'),
+    'RTK-1080P120': Path('/usr/share/vim4-kvm/edid/rtk-uhd-hdr-1080p120.bin'),
 }
 # Unmodified EDID read from a physical RTK UHD HDR display; carried inline so
 # every application offers the same table without a separate data file.

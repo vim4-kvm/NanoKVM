@@ -138,6 +138,16 @@ class EdidTest(unittest.TestCase):
             edid.main(['apply', 'RTK-CONTROL'])
         load.assert_called_once_with(edid.RTK_UHD_HDR_EDID)
 
+    def test_file_preset_loads_validated_data_and_restores_after_restart(self):
+        candidate = Path(self.directory.name) / 'high-refresh.bin'
+        candidate.write_bytes(block(1, extension()))
+        with patch.dict(edid.PRESETS, {'RTK-1080P120': candidate}), patch.object(edid, 'load') as load:
+            edid.main(['preset', 'RTK-1080P120'])
+            self.assertEqual(edid.active(), ('RTK-1080P120', candidate.read_bytes()))
+            edid.tvserver_run.return_value = 'run-2'
+            edid.restore()
+            self.assertEqual(load.call_args_list, [unittest.mock.call(candidate.read_bytes())] * 2)
+
 
 if __name__ == '__main__':
     unittest.main()
