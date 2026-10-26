@@ -14,6 +14,11 @@ Native EDID changes on 7.x release capture before programming the receiver.
 Use `VIM4-1080P60-SDR8` for 1080p: the original vendor preset can make macOS
 select an unsupported 10-bit transport. Original and uploaded tables are retained.
 
+Vendor receivers exposing `Capture Frame Rate` supply a stable encoder budget
+during VRR, avoiding restarts on changing frame periods. Older drivers retain
+the measured-rate fallback. This compatibility change does not advertise VRR
+or establish hardware VRR qualification.
+
 ## Build
 
 Use the adjacent vim4-kvm workspace and its pinned Ubuntu ARM64 builder:

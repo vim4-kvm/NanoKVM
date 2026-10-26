@@ -2,7 +2,26 @@
 
 package common
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
+
+func TestVRRCadenceKeepsEncoderBudget(t *testing.T) {
+	var change rateChange
+	for _, rate := range []int{4800, 6000, 9000, 9000, 9000, 11988} {
+		info := fmt.Sprintf("Frame Rate: %d\nCapture Frame Rate: 12000\n", rate)
+		if got := knownHDMIFrameRate(info, 0); got != 120 || change.observe(120, got) {
+			t.Fatalf("VRR cadence %d changed capture budget to %d", rate, got)
+		}
+		if got := knownHDMIFrameRate(info, 60); got != 60 {
+			t.Fatalf("VRR input bypassed output limit: %d", got)
+		}
+	}
+	if knownHDMIFrameRate("Capture Frame Rate: 0\nFrame Rate: 4800", 0) != 0 {
+		t.Fatal("unknown base timing fell back to variable cadence")
+	}
+}
 
 func TestRateChangeRequiresStableSignal(t *testing.T) {
 	var change rateChange

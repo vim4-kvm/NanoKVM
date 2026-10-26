@@ -69,16 +69,21 @@ func hdmiEncoderFrameRate(info string, limit int) int {
 
 func knownHDMIFrameRate(info string, limit int) int {
 	rate := 0
-	for _, line := range strings.Split(info, "\n") {
-		key, value, ok := strings.Cut(line, ":")
-		if !ok || strings.TrimSpace(key) != "Frame Rate" {
-			continue
+	// New receivers expose a stable base budget during VRR. Older kernels
+	// retain the measured-rate fallback, including the Wave5 property above.
+fields:
+	for _, name := range []string{"Capture Frame Rate", "Frame Rate"} {
+		for _, line := range strings.Split(info, "\n") {
+			key, value, ok := strings.Cut(line, ":")
+			if !ok || strings.TrimSpace(key) != name {
+				continue
+			}
+			hundredths, err := strconv.Atoi(strings.TrimSpace(value))
+			if err == nil && hundredths >= 100 && hundredths <= 12000 {
+				rate = (hundredths + 50) / 100
+			}
+			break fields
 		}
-		hundredths, err := strconv.Atoi(strings.TrimSpace(value))
-		if err == nil && hundredths >= 100 && hundredths <= 12000 {
-			rate = (hundredths + 50) / 100
-		}
-		break
 	}
 	if limit > 0 && limit < rate {
 		rate = limit
