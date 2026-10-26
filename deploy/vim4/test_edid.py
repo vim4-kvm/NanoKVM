@@ -119,9 +119,9 @@ class EdidTest(unittest.TestCase):
         load.assert_called_once()
 
     def test_rtk_preset_is_the_board_copy_and_persists(self):
-        # SHA256 recorded with the original in the vim4-kvm board/edid directory.
+        # Shared qualified RTK profile; selecting its existing name loads VRR.
         self.assertEqual(hashlib.sha256(edid.validate(edid.RTK_UHD_HDR_EDID)).hexdigest(),
-                         '32c6a60823dd676e848f8423feff1b469d07f5bac52885723dfa70b74cfda33d')
+                         '45ed44250763f39561961829ff5f9f5f18a8fba6847afd088f8aab2636ceaf45')
         with patch.object(edid, 'load') as load:
             edid.main(['preset', 'RTK-CONTROL'])
         load.assert_called_once_with(edid.RTK_UHD_HDR_EDID)
@@ -141,12 +141,28 @@ class EdidTest(unittest.TestCase):
     def test_file_preset_loads_validated_data_and_restores_after_restart(self):
         candidate = Path(self.directory.name) / 'high-refresh.bin'
         candidate.write_bytes(block(1, extension()))
-        with patch.dict(edid.PRESETS, {'RTK-1080P120': candidate}), patch.object(edid, 'load') as load:
-            edid.main(['preset', 'RTK-1080P120'])
-            self.assertEqual(edid.active(), ('RTK-1080P120', candidate.read_bytes()))
+        with patch.dict(edid.PRESETS, {'test-file': candidate}), patch.object(edid, 'load') as load:
+            edid.main(['preset', 'test-file'])
+            self.assertEqual(edid.active(), ('test-file', candidate.read_bytes()))
             edid.tvserver_run.return_value = 'run-2'
             edid.restore()
             self.assertEqual(load.call_args_list, [unittest.mock.call(candidate.read_bytes())] * 2)
+
+    def test_legacy_rtk_selection_resolves_to_the_single_rtk_profile(self):
+        with patch.object(edid, 'load') as load:
+            edid.main(['preset', 'RTK-1080P120'])
+        load.assert_called_once_with(edid.RTK_UHD_HDR_EDID)
+        self.assertEqual(edid.active(), ('RTK-CONTROL', edid.RTK_UHD_HDR_EDID))
+
+    def test_saved_builtin_rtk_follows_updated_profile_but_custom_bytes_survive(self):
+        for name in ('RTK-CONTROL', 'RTK-1080P120', 'custom.bin'):
+            with self.subTest(name=name):
+                old = block(1, extension())
+                edid.persist(name, old)
+                edid.LOADED.unlink(missing_ok=True)
+                with patch.object(edid, 'load') as load:
+                    edid.restore()
+                load.assert_called_once_with(old if name == 'custom.bin' else edid.RTK_UHD_HDR_EDID)
 
 
 if __name__ == '__main__':

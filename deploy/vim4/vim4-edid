@@ -4,7 +4,8 @@
 Usage: vim4-edid status | restore | reclaim | preset NAME | apply NAME < edid.bin
 
 Presets: VIM4-4K60 (default), VIM4-1080P60, VIM4-1080P60-SDR8,
-RTK-CONTROL (original RTK UHD HDR 4K60), RTK-1080P120 (experimental derivative).
+RTK-CONTROL (RTK UHD HDR: 4K60, 1080p120 and VRR).
+The former RTK-1080P120 name remains an alias for saved clients.
 """
 import fcntl
 import os
@@ -32,20 +33,21 @@ PRESETS = {
     'VIM4-4K60': Path('/etc/tvconfig/hdmi/port1_20.bin'),
     'VIM4-1080P60': Path('/etc/tvconfig/hdmi/port1_14.bin'),
     'VIM4-1080P60-SDR8': Path('/usr/share/vim4-kvm/edid/1080p60-sdr8.bin'),
-    'RTK-1080P120': Path('/usr/share/vim4-kvm/edid/rtk-uhd-hdr-1080p120.bin'),
 }
-# Unmodified EDID read from a physical RTK UHD HDR display; carried inline so
-# every application offers the same table without a separate data file.
+# Shared RTK profile, including the qualified high-refresh and VRR declarations.
+# Keep the historic identifier so existing clients select the updated profile.
 RTK_UHD_HDR = 'RTK-CONTROL'
+RTK_LEGACY = 'RTK-1080P120'
 RTK_UHD_HDR_EDID = bytes.fromhex(
-    '00FFFFFFFFFFFF004A8B1A1B000000002B1E0103A20000783E6435A5544F9E27'
-    '125054210800D1C0A9C081C00101010101010101010140D000A0F0703E803020'
-    '350061632100001A000000FC0052544B20554844204844520A20000000FF0064'
-    '656D6F7365742D310A203020000000FD00283D1E873C000A202020202020014F'
-    '020348F151044C5D5E5F606100000000006768696A6BE305C00023097F078301'
-    '0000E50F00000C0067030C001000387867D85DC401788801E606050169694F68'
-    '1A00000101283DE6023A801871382D40582C450061632100001E565E00A0A0A0'
-    '29503020350061632100001E0000000000000000000000000000000000000096'
+    '00ffffffffffff004a8b1a1b000000002b1e0103a20000783e6435a5544f'
+    '9e27125054210800d1c0a9c081c00101010101010101010140d000a0f070'
+    '3e803020350061632100001a000000fc0052544b20554844204844520a20'
+    '000000ff0064656d6f7365742d310a203020000000fd0028781e873c000a'
+    '2020202020200114020342f151044c5d5e5f60613f400000006768696a6b'
+    'e305c00023097f0783010000e50f00000c0067030c00100038786ad85dc4'
+    '01788801003078e606050169694f023a801871382d40582c450061632100'
+    '001e565e00a0a0a029503020350061632100001e00000000000000000000'
+    '00000000000000000000000000000041'
 )
 DEFAULT = 'VIM4-4K60'
 NAME = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')
@@ -121,6 +123,10 @@ def restore(reclaim=False):
     JetKVM loaded; capture restarts must not, as JetKVM may be running.
     """
     name, edid = active()
+    if name in (RTK_UHD_HDR, RTK_LEGACY):
+        # Built-in selections follow the current profile after an upgrade;
+        # uploaded/custom tables retain their saved bytes.
+        edid = RTK_UHD_HDR_EDID
     if platform.release().startswith('7.'):
         # The receiver checks the actual table and leaves HPD untouched for
         # identical data, including during an active DMA lease.
@@ -147,14 +153,15 @@ def main(args):
     with open(LOCK, 'w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         if args == ['status']:
-            print(active()[0] or DEFAULT)
+            name = active()[0] or DEFAULT
+            print(RTK_UHD_HDR if name == RTK_LEGACY else name)
         elif args == ['restore']:
             restore()
         elif args == ['reclaim']:
             restore(reclaim=True)
         elif len(args) == 2 and args[0] == 'preset' and args[1] in PRESETS:
             apply(args[1], PRESETS[args[1]].read_bytes())
-        elif args == ['preset', RTK_UHD_HDR]:
+        elif len(args) == 2 and args[0] == 'preset' and args[1] in (RTK_UHD_HDR, RTK_LEGACY):
             apply(RTK_UHD_HDR, RTK_UHD_HDR_EDID)
         elif len(args) == 2 and args[0] == 'apply' and NAME.match(args[1]) and args[1] not in PRESETS:
             edid = sys.stdin.buffer.read(257)
