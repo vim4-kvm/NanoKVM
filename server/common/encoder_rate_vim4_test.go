@@ -7,11 +7,22 @@ import (
 	"testing"
 )
 
+func TestStaleTimingsDoNotEstablishReceiverLock(t *testing.T) {
+	for _, text := range []string{"3b11", "0", "", "invalid"} {
+		if signalLocked(text) {
+			t.Fatalf("unlocked receiver accepted: %q", text)
+		}
+	}
+	if !signalLocked("13b11\n") {
+		t.Fatal("locked receiver rejected")
+	}
+}
+
 func TestVRRCadenceKeepsEncoderBudget(t *testing.T) {
-	var change rateChange
+	var change inputChange
 	for _, rate := range []int{4800, 6000, 9000, 9000, 9000, 11988} {
 		info := fmt.Sprintf("Frame Rate: %d\nCapture Frame Rate: 12000\n", rate)
-		if got := knownHDMIFrameRate(info, 0); got != 120 || change.observe(120, got) {
+		if got := knownHDMIFrameRate(info, 0); got != 120 || change.observe(inputMode{rate: 120}, parseInputMode(info)) {
 			t.Fatalf("VRR cadence %d changed capture budget to %d", rate, got)
 		}
 		if got := knownHDMIFrameRate(info, 60); got != 60 {
@@ -23,14 +34,14 @@ func TestVRRCadenceKeepsEncoderBudget(t *testing.T) {
 	}
 }
 
-func TestRateChangeRequiresStableSignal(t *testing.T) {
-	var change rateChange
-	for _, rate := range []int{60, 60, 0, 60, 50, 50, 30, 60, 60} {
-		if change.observe(30, rate) {
+func TestInputChangeRequiresMatchingObservations(t *testing.T) {
+	var change inputChange
+	for _, rate := range []int{60, 0, 60, 50, 30, 60} {
+		if change.observe(inputMode{rate: 30}, inputMode{rate: rate}) {
 			t.Fatalf("premature restart at %d", rate)
 		}
 	}
-	if !change.observe(30, 60) {
+	if !change.observe(inputMode{rate: 30}, inputMode{rate: 60}) {
 		t.Fatal("stable new signal did not restart")
 	}
 	if knownHDMIFrameRate("Frame Rate: 0", 15) != 0 {
@@ -38,6 +49,22 @@ func TestRateChangeRequiresStableSignal(t *testing.T) {
 	}
 	if knownHDMIFrameRate("Frame Rate: 6000", 30) != 30 {
 		t.Fatal("drop ceiling ignored")
+	}
+}
+
+func TestInputChangeIsIndependentOfOutputRateLimit(t *testing.T) {
+	current := parseInputMode("Hactive: 3840\nVactive: 2160\nFrame Rate: 6000\nHDR EOTF: SDR")
+	for _, info := range []string{
+		"Hactive: 3440\nVactive: 1440\nFrame Rate: 6000\nHDR EOTF: SDR",
+		"Hactive: 3840\nVactive: 2160\nFrame Rate: 6000\nHDR EOTF: SMPTE_ST_2048",
+		"Hactive: 3840\nVactive: 2160\nFrame Rate: 5000\nHDR EOTF: SDR",
+		"",
+	} {
+		var change inputChange
+		next := parseInputMode(info)
+		if change.observe(current, next) || !change.observe(current, next) {
+			t.Fatalf("input change was missed: %q", info)
+		}
 	}
 }
 

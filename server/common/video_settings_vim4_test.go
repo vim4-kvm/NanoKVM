@@ -74,6 +74,32 @@ func TestJPEGProducesDecodableFrames(t *testing.T) {
 	}
 }
 
+func TestSourceChangeRetriesWithoutHardwareFailureBackoff(t *testing.T) {
+	for _, state := range []struct{ failed, eos bool }{{}, {failed: true}, {failed: true, eos: true}} {
+		failed := state.failed
+		done, frames := make(chan struct{}), make(chan gstcapture.Frame)
+		close(done)
+		close(frames)
+		k := KvmVision{StreamType: STREAM_TYPE_H264_WEBRTC, session: &captureSession{
+			cancel: func() {}, done: done, frames: frames, failed: failed, eos: state.eos,
+		}}
+		_, result := k.readSample(codecH264)
+		want := -4
+		if failed {
+			want = -2
+		}
+		if result != want {
+			t.Fatalf("failed=%v: result=%d, want=%d", failed, result, want)
+		}
+		if time.Now().Before(k.retryAfter) != failed {
+			t.Fatalf("source transition inherited hardware-failure backoff: failed=%v retry=%v", failed, k.retryAfter)
+		}
+		if state.eos && time.Until(k.retryAfter) >= 500*time.Millisecond {
+			t.Fatal("source EOS inherited the one-second hardware-failure backoff")
+		}
+	}
+}
+
 func TestReadersOnlyConsumeTheirCodec(t *testing.T) {
 	k := KvmVision{StreamType: STREAM_TYPE_H265_DIRECT, retryAfter: time.Now().Add(time.Hour)}
 	for name, read := range map[string]func() int{

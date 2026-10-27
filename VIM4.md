@@ -68,6 +68,15 @@ custom values between presets. MJPEG retains separate JPEG quality choices.
 | Automation | Native MCP/PicoClaw, ARM64 runtime in an application-owned directory |
 | Updates | Validated `vim4-nanokvm` ARM64 deb bundles; no appliance firmware installation |
 
+Vendor capture checks cached RX lock (`hw_info` bit 16), geometry, color, depth,
+EOTF and base frame rate every 100 ms. Two matching changed observations rebuild
+all video modes, including JPEG. Planned rebuilds skip the encoder-failure backoff
+and preserve media connections. A three-second no-buffer watchdog catches silent
+stalls; unchanged pixels do not trigger it. HDMI resynchronization remains visible.
+AVC reserves encoder workspace before capture; HEVC uses the shared source's
+bootstrap. One-frame raw queues and the matched six-buffer capture pool leave
+contiguous memory for input changes. Deploy the matched capture plugin together.
+
 Only HDMI and USB-C are connected. ATX, external displays and other unattached
 hardware report unconfigured. HDMI passthrough and disabling the board-owned
 HDMI source are not implemented. Keep board HDMI, PD, gadget and clock services.

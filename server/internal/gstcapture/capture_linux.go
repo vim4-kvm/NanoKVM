@@ -67,6 +67,11 @@ static char *pipeline_error(GstElement *pipeline) {
     return text;
 }
 static int is_appsink(GstElement *element) { return GST_IS_APP_SINK(element); }
+static int sink_started(GstElement *sink) {
+    GstState state;
+    gst_element_get_state(sink, &state, NULL, 0);
+    return state >= GST_STATE_PAUSED;
+}
 static guint64 sample_age(GstElement *pipeline, guint64 pts) {
     if (!GST_CLOCK_TIME_IS_VALID(pts)) return GST_CLOCK_TIME_NONE;
     GstClock *clock = gst_element_get_clock(pipeline);
@@ -205,6 +210,7 @@ func Run(ctx context.Context, description string, keyframes <-chan struct{}, con
 		return errors.New("pipeline refused PLAYING state")
 	}
 	previous := uint64(^uint64(0))
+	lastFrame := time.Now()
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -223,11 +229,24 @@ func Run(ctx context.Context, description string, keyframes <-chan struct{}, con
 		}
 		sample := C.gst_app_sink_try_pull_sample(app, C.GstClockTime(100*time.Millisecond))
 		if sample == nil {
-			if C.gst_app_sink_is_eos(app) != 0 {
+			// is_eos is also true before appsink starts during async bin setup.
+			started := C.sink_started(sink) != 0
+			if started && C.gst_app_sink_is_eos(app) != 0 {
 				return io.EOF
+			}
+			if time.Since(lastFrame) >= 3*time.Second {
+				return errors.New("capture produced no frames for 3 seconds")
+			}
+			if !started {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(10 * time.Millisecond):
+				}
 			}
 			continue
 		}
+		lastFrame = time.Now()
 		var mapped C.GstMapInfo
 		var pts, duration C.guint64
 		var width, height, keyframe C.int

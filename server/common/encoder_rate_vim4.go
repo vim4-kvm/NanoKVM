@@ -63,7 +63,13 @@ func hdmiInfo() string {
 		}
 		return fmt.Sprintf("Frame Rate: %d\n", rate)
 	}
+	if !vendorSignalReady() {
+		return ""
+	}
 	info, _ := os.ReadFile("/sys/class/hdmirx/hdmirx0/info")
+	if !vendorSignalReady() {
+		return ""
+	}
 	return string(info)
 }
 
@@ -102,39 +108,25 @@ fields:
 	return rate
 }
 
-// Ignore loss of lock and debounce valid changes before reopening the codec.
-// The budget is immutable for a running vendor encoder.
-func watchEncoderRate(ctx context.Context, initial, limit int, changed context.CancelFunc) {
-	ticker := time.NewTicker(500 * time.Millisecond)
+// Watch every stream type, including JPEG. Geometry may change without a new
+// frame rate or an EOS/error from the capture driver.
+func watchEncoderInput(ctx context.Context, initial inputMode, changed context.CancelFunc) {
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
-	var change rateChange
+	var change inputChange
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			rate := knownHDMIFrameRate(hdmiInfo(), limit)
-			if change.observe(initial, rate) {
-				log.Infof("VIM4 HDMI budget changed from %d to %d fps; reopening capture", initial, rate)
+			input := parseInputMode(hdmiInfo())
+			if change.observe(initial, input) {
+				log.Infof("VIM4 HDMI input changed from %+v to %+v; reopening capture", initial, input)
 				changed()
 				return
 			}
 		}
 	}
-}
-
-type rateChange struct{ candidate, count int }
-
-func (c *rateChange) observe(initial, rate int) bool {
-	if rate == 0 || rate == initial {
-		c.candidate, c.count = 0, 0
-		return false
-	}
-	if rate != c.candidate {
-		c.candidate, c.count = rate, 0
-	}
-	c.count++
-	return c.count >= 3
 }
 
 // Experiments are operator-only service overrides, never UI defaults. Validate

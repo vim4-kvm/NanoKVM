@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -60,6 +62,8 @@ type captureSession struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 	frames chan gstcapture.Frame
+	failed bool // Published before done/frames close; source changes retry immediately.
+	eos    bool // A graceful source stop retries sooner than a hardware failure.
 }
 
 type KvmVision struct {
@@ -89,11 +93,15 @@ func newKvmVision() *KvmVision {
 
 func GetKvmVision() *KvmVision { return vim4Vision }
 
-func (k *KvmVision) startLocked() {
+func (k *KvmVision) startLocked(input inputMode) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &captureSession{cancel: cancel, done: make(chan struct{}), frames: make(chan gstcapture.Frame, 2)}
 	k.session = s
-	rate := encoderFrameRate(k.settings.FPS)
+	limit := k.settings.FPS
+	rate := input.rate
+	if limit > 0 && limit < rate {
+		rate = limit
+	}
 	pipeline := k.settings.pipelineAtRate(k.StreamType, rate)
 	// A new encoder starts with an IDR frame; discard requests made for the old one.
 	select {
@@ -103,14 +111,35 @@ func (k *KvmVision) startLocked() {
 	var keyframes <-chan struct{}
 	if k.StreamType != STREAM_TYPE_MJPEG {
 		keyframes = k.keyframes
-		go watchEncoderRate(ctx, rate, k.settings.FPS, cancel)
 	}
+	go watchEncoderInput(ctx, input, cancel)
 	codec := streamCodec(k.StreamType)
 	go func() {
 		defer cancel()
 		defer close(s.done)
 		defer close(s.frames)
+		// Reserve AVC workspace before capture splits contiguous CMA. HEVC's
+		// shared source owns its bootstrap; the SDK retains the first frame's.
+		var encoderMemory *os.File
+		if codec == codecH264 && secondaryHDMICapture() {
+			var err error
+			encoderMemory, err = os.OpenFile("/dev/amvenc_multi", os.O_RDWR, 0)
+			if err != nil {
+				log.Errorf("reserve VIM4 encoder workspace: %v", err)
+				s.failed = true
+				return
+			}
+		}
+		defer func() {
+			if encoderMemory != nil {
+				encoderMemory.Close()
+			}
+		}()
 		err := gstcapture.Run(ctx, pipeline, keyframes, func(frame gstcapture.Frame) error {
+			if encoderMemory != nil {
+				encoderMemory.Close()
+				encoderMemory = nil
+			}
 			k.dimensions.Store(uint32(frame.Width)<<16 | uint32(frame.Height))
 			if frame.Keyframe || codec == codecJPEG {
 				k.snapshotKey.Store(&snapshotKey{frame: frame, codec: codec, at: time.Now()})
@@ -125,6 +154,8 @@ func (k *KvmVision) startLocked() {
 		})
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Errorf("VIM4 capture: %v", err)
+			s.failed = parseInputMode(hdmiInfo()) == input
+			s.eos = errors.Is(err, io.EOF)
 		}
 	}()
 }
@@ -167,7 +198,12 @@ func (k *KvmVision) readSample(codec videoCodec) (gstcapture.Frame, int) {
 		if time.Now().Before(k.retryAfter) {
 			return gstcapture.Frame{}, -1
 		}
-		k.startLocked()
+		input := parseInputMode(hdmiInfo())
+		if input.rate == 0 {
+			k.retryAfter = time.Now().Add(100 * time.Millisecond)
+			return gstcapture.Frame{}, -1
+		}
+		k.startLocked(input)
 	}
 	timer := time.NewTimer(500 * time.Millisecond)
 	defer timer.Stop()
@@ -176,9 +212,17 @@ func (k *KvmVision) readSample(codec videoCodec) (gstcapture.Frame, int) {
 		if !ok {
 			k.session.cancel()
 			<-k.session.done
+			result := -4 // The input changed; retry without reporting an encoder failure.
+			if k.session.failed {
+				delay := time.Second
+				if k.session.eos {
+					delay = 100 * time.Millisecond
+				}
+				k.retryAfter = time.Now().Add(delay)
+				result = -2
+			}
 			k.session = nil
-			k.retryAfter = time.Now().Add(time.Second)
-			return gstcapture.Frame{}, -2
+			return gstcapture.Frame{}, result
 		}
 		if !f.CopiedAt.IsZero() {
 			ageMS := -1.0
@@ -331,7 +375,7 @@ func (s VideoSettings) pipelineAtRate(mode uint8, rate int) string {
 	if wave5Backend() || secondaryHDMICapture() {
 		p += fmt.Sprintf(" height=%d", s.Height)
 	}
-	p += " ! queue max-size-buffers=3 max-size-bytes=0 max-size-time=0 ! "
+	p += " ! queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 ! "
 	_, _, hardwareJPEG := gstcapture.IntPropertyRange("vim4jpegenc", "quality")
 	fps := s.FPS
 	if mode == STREAM_TYPE_MJPEG && !hardwareJPEG && (fps == 0 || fps > 10) {
