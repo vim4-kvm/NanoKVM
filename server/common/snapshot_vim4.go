@@ -93,6 +93,11 @@ func (k *KvmVision) Snapshot(ctx context.Context) ([]byte, error) {
 	defer ticker.Stop()
 	for {
 		if key := k.snapshotKey.Load(); key != nil && key.at.After(requested) {
+			if key.frame.ColorSpace[1] == 16 && H265Main10() {
+				// JPEG consumers need the hardware-mapped VDIN1 picture. An
+				// eight-bit conversion of the PQ keyframe is not tone mapping.
+				return snapshotJPEG(ctx, captureFactory()+" num-buffers=1 ! videoconvert", key.frame.Width, key.frame.Height)
+			}
 			return decodeSnapshot(ctx, key)
 		}
 		select {

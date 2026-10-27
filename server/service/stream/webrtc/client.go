@@ -73,7 +73,7 @@ func (c *Client) ReadMessage() (*Message, error) {
 func (c *Client) AddTrack() error {
 	capability := webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264, ClockRate: 90000, SDPFmtpLine: h264SDPFmtpLine}
 	if c.h265 {
-		capability = webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH265, ClockRate: 90000}
+		capability = webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH265, ClockRate: 90000, SDPFmtpLine: h265Fmtp()}
 	}
 	// video track
 	videoTrack, err := webrtc.NewTrackLocalStaticRTP(

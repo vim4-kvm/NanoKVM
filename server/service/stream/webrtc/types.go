@@ -42,6 +42,7 @@ type SignalingHandler struct {
 type Track struct {
 	video   *webrtc.TrackLocalStaticRTP
 	delayID atomic.Uint32
+	colorID atomic.Uint32
 }
 
 type Message struct {

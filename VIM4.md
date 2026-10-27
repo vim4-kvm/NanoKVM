@@ -100,8 +100,14 @@ ejected through the manager. The legacy disk switch cannot eject another disk.
 ## Installation and updates
 
 On native-HDR 5.15, the launcher enables `VIM4_SECONDARY_HDMI_CAPTURE=1` and
-the shared `vim4vdin1src` captures SDR from VDIN1 for H.264, H.265, MJPEG and
-snapshots. Resolution controls scale VDIN1 without restarting the HDR display.
+the shared `vim4vdin1src` captures SDR from VDIN1 for H.264, MJPEG and
+snapshots. H.265 uses `vim4h265src`: with global HDR conversion disabled, PQ
+input is encoded as Main10 and retains BT.2020/PQ; other input remains SDR.
+WebRTC reserves Main10 in SDP and sends each frame's actual colorimetry.
+Browsers without Main10 negotiation use H.264 SDR. Direct derives its decoder
+profile from SPS and presents HDR through a native video track when supported;
+ordinary Canvas remains the SDR path. Safari remote HDR is not qualified.
+Resolution controls do not restart the HDMI display.
 Deploy the matching board, capture and encoder packages before this application;
 the shared private standard V4L2 plugin must precede the system vendor plugin.
 

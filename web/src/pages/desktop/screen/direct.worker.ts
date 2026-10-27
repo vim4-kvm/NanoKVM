@@ -1,5 +1,7 @@
 import Queue from 'yocto-queue';
 
+import { hevcCodecFromAnnexB } from './hevc';
+
 let canvas: OffscreenCanvas | null = null;
 let ctx: OffscreenCanvasRenderingContext2D | null = null;
 let rendering: boolean = false;
@@ -16,6 +18,10 @@ let decodeBackpressured = false;
 let reportedFrameWidth = 0;
 let reportedFrameHeight = 0;
 let codec = 'avc1.42E02A';
+let hevc = false;
+let nativeHdr = false;
+let hdrInFlight = false;
+let displayingHdr = false;
 
 const maxQueuedFrames = 1;
 const maxReconnectDelayMs = 5_000;
@@ -29,7 +35,8 @@ const frameChannel = new MessageChannel();
 
 type WorkerMessage = {
   codec?: 'h264' | 'h265';
-  type: 'h264' | 'stop';
+  type: 'h264' | 'stop' | 'frame-presented';
+  nativeHdr?: boolean;
   canvas?: OffscreenCanvas;
   url?: string;
 };
@@ -49,7 +56,11 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
       }
 
       canvas = offscreenCanvas;
-      codec = event.data.codec === 'h265' ? 'hev1.1.6.L93.B0' : 'avc1.42E02A';
+      hevc = event.data.codec === 'h265';
+      codec = hevc ? '' : 'avc1.42E02A';
+      nativeHdr = !!event.data.nativeHdr;
+      hdrInFlight = false;
+      displayingHdr = false;
       reportedFrameWidth = 0;
       reportedFrameHeight = 0;
       ctx = canvas!.getContext('2d', {
@@ -65,6 +76,9 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
       clearReconnectTimer();
       disconnect();
       resetDecoder();
+      break;
+    case 'frame-presented':
+      hdrInFlight = false;
       break;
   }
 };
@@ -163,6 +177,15 @@ function handleWsMessage(message: ArrayBuffer) {
     const isKeyFrame = view.getUint8(0) === 1;
     const timestamp = Number(view.getBigUint64(1, true));
     const data = new Uint8Array(message, 9);
+
+    if (hevc && isKeyFrame) {
+      const next = hevcCodecFromAnnexB(data);
+      if (!next) throw new Error('HEVC keyframe is missing SPS');
+      if (next !== codec) {
+        resetDecoder();
+        codec = next;
+      }
+    }
 
     if (!decoder) {
       if (!isKeyFrame) {
@@ -306,6 +329,25 @@ function scheduleFrameQueue() {
 }
 
 function renderFrame(frame: VideoFrame) {
+  // Older DOM typings omit the HDR transfer values exposed by current Chrome.
+  const transfer: string | null = frame.colorSpace.transfer;
+  const hdr = transfer === 'pq' || transfer === 'hlg';
+  if (hdr && nativeHdr) {
+    displayingHdr = true;
+    if (hdrInFlight) {
+      frame.close();
+      return;
+    }
+    hdrInFlight = true;
+    // Transfer the original HDR frame to an HTML video track. An ordinary
+    // eight-bit Canvas would tone-map/clamp it before display.
+    self.postMessage({ type: 'hdr-frame', frame }, [frame]);
+    return;
+  }
+  if (displayingHdr) {
+    displayingHdr = false;
+    self.postMessage({ type: 'hdr-mode', enabled: false });
+  }
   if (!canvas || !ctx) {
     frame.close();
     return;

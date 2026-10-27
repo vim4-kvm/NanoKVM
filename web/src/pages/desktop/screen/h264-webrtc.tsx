@@ -5,6 +5,8 @@ import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { w3cwebsocket as W3cWebSocket } from 'websocket';
 
+import { getVideoSettings } from '@/api/vim4-stream';
+import { isVIM4 } from '@/lib/platform';
 import { getBaseUrl } from '@/lib/service.ts';
 import { mouseStyleAtom } from '@/jotai/mouse.ts';
 
@@ -32,6 +34,8 @@ export const H264Webrtc = ({ codec = 'h264' }: { codec?: 'h264' | 'h265' }) => {
   const mouseStyle = useAtomValue(mouseStyleAtom);
   const [isLoading, setIsLoading] = useState(true);
   const [connectionAttempt, setConnectionAttempt] = useState(0);
+  const [fallbackH264, setFallbackH264] = useState(false);
+  const activeCodec = fallbackH264 ? 'h264' : codec;
   const [notificationApi, contextHolder] = notification.useNotification();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -44,7 +48,7 @@ export const H264Webrtc = ({ codec = 'h264' }: { codec?: 'h264' | 'h265' }) => {
   }, [t]);
 
   useEffect(() => {
-    const url = `${getBaseUrl('ws')}${codec === 'h265' ? '/api/stream/h265/webrtc' : '/api/stream/h264'}`;
+    const url = `${getBaseUrl('ws')}${activeCodec === 'h265' ? '/api/stream/h265/webrtc' : '/api/stream/h264'}`;
     const ws = new W3cWebSocket(url);
     const videoElement = videoRef.current;
 
@@ -164,7 +168,7 @@ export const H264Webrtc = ({ codec = 'h264' }: { codec?: 'h264' | 'h265' }) => {
       };
 
       const receiver = peer.addTransceiver('video', { direction: 'recvonly' });
-      if (codec === 'h265') {
+      if (activeCodec === 'h265') {
         const codecs = RTCRtpReceiver.getCapabilities('video')?.codecs.filter(
           (item) =>
             item.mimeType.toLowerCase() === 'video/h265' ||
@@ -239,13 +243,27 @@ export const H264Webrtc = ({ codec = 'h264' }: { codec?: 'h264' | 'h265' }) => {
       scheduleReconnect('the signaling WebSocket closed');
     };
 
-    ws.onmessage = (event) => {
+    ws.onmessage = async (event) => {
       try {
         const msg = JSON.parse(event.data as string) as SignalingMessage;
 
         switch (msg.event) {
           case 'ice-servers': {
             const iceServers = parseSignalingData<RTCIceServer[]>(msg.data);
+            if (isVIM4 && activeCodec === 'h265') {
+              const settings = await getVideoSettings();
+              const main10 = RTCRtpReceiver.getCapabilities('video')?.codecs.some(
+                (item) =>
+                  item.mimeType.toLowerCase() === 'video/h265' &&
+                  /(?:^|;)\s*profile-id=2(?:;|$)/.test(item.sdpFmtpLine ?? '')
+              );
+              // Safari's implicit Main profile cannot receive our Main10
+              // source. Keep video usable without sending a mismatched stream.
+              if (settings.code === 0 && settings.data.h265Main10 && !main10) {
+                setFallbackH264(true);
+                return;
+              }
+            }
             startVideo(Array.isArray(iceServers) ? iceServers : []);
             break;
           }
@@ -311,7 +329,7 @@ export const H264Webrtc = ({ codec = 'h264' }: { codec?: 'h264' | 'h265' }) => {
       clearTimeout(loadingTimer);
       clearTimeout(connectionTimeoutTimer);
     };
-  }, [connectionAttempt, notificationApi]);
+  }, [connectionAttempt, notificationApi, activeCodec]);
 
   useEffect(() => {
     return () => {

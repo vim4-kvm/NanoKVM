@@ -27,6 +27,17 @@ func secondaryHDMICapture() bool {
 	return !wave5Backend() && os.Getenv("VIM4_SECONDARY_HDMI_CAPTURE") == "1"
 }
 
+// H.265 reserves a Main10-capable receiver for the lifetime of the session:
+// the global mapping and source EOTF may change without a new SDP exchange.
+// Eight-bit Main SDR also conforms to Main10, so the same track can carry both.
+func H265Main10() bool {
+	if !secondaryHDMICapture() {
+		return false
+	}
+	capable, ok := gstcapture.IntPropertyValue("vim4h265src", "hdr-capable")
+	return ok && capable == 1
+}
+
 func captureFactory() string {
 	if wave5Backend() {
 		return "vim4v4l2src"

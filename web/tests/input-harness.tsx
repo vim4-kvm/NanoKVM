@@ -36,13 +36,14 @@ Object.assign(window, {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <div style={{ width: 900, height: 600 }}>
     <ScreenViewport>
-      <canvas
+      <div
         id="screen"
-        width={1920}
-        height={1080}
+        data-direct-screen
         data-media-width="1920"
         data-media-height="1080"
-      />
+      >
+        <canvas width={1920} height={1080} style={{ width: '100%', height: '100%' }} />
+      </div>
     </ScreenViewport>
     <Mouse />
     <Keyboard />

@@ -141,6 +141,14 @@ func (k *KvmVision) ReadH265Sample(_, _, _ uint16) ([]byte, int, time.Duration, 
 	return f.Data, result, f.PTS, result >= 0 && f.HasPTS
 }
 
+func (k *KvmVision) ReadStreamFrame(h265 bool) (gstcapture.Frame, int) {
+	codec := codecH264
+	if h265 {
+		codec = codecH265
+	}
+	return k.readSample(codec)
+}
+
 // RequestKeyframe asks the running H.264/H.265 encoder for an IDR frame.
 func (k *KvmVision) RequestKeyframe() {
 	select {
@@ -312,6 +320,13 @@ func (s VideoSettings) pipeline(mode uint8) string {
 }
 
 func (s VideoSettings) pipelineAtRate(mode uint8, rate int) string {
+	if streamCodec(mode) == codecH265 && H265Main10() {
+		qp := -1
+		if s.RateControl == "vbr" {
+			qp = vbrQPMax
+		}
+		return fmt.Sprintf("vim4h265src bitrate=%d gop=%d framerate=%d height=%d qp-max=%d ! appsink name=frames sync=false", s.Bitrate, s.GOP, rate, s.Height, qp)
+	}
 	p := captureFactory()
 	if wave5Backend() || secondaryHDMICapture() {
 		p += fmt.Sprintf(" height=%d", s.Height)

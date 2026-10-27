@@ -23,11 +23,9 @@ func stopVideo(h265 bool) {
 	}
 	common.GetKvmVision().StopVideoFor(mode)
 }
-func readVideo(v *common.KvmVision, s *common.Screen, h265 bool) ([]byte, int, time.Duration, bool) {
-	if h265 {
-		return v.ReadH265Sample(s.Width, s.Height, s.BitRate)
-	}
-	return v.ReadH264Sample(s.Width, s.Height, s.BitRate)
+func readVideo(v *common.KvmVision, s *common.Screen, h265 bool) ([]byte, int, time.Duration, bool, [4]byte) {
+	frame, result := v.ReadStreamFrame(h265)
+	return frame.Data, result, frame.PTS, frame.HasPTS, frame.ColorSpace
 }
 func SelectMJPEG() { common.GetKvmVision().SetStreamType(common.STREAM_TYPE_MJPEG) }
 func StopMJPEG()   { common.GetKvmVision().StopVideoFor(common.STREAM_TYPE_MJPEG) }

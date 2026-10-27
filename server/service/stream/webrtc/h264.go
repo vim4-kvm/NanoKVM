@@ -172,6 +172,9 @@ func createMediaEngine() (*webrtc.MediaEngine, error) {
 		return nil, err
 	}
 	if platform.VIM4 {
+		if err := mediaEngine.RegisterHeaderExtension(webrtc.RTPHeaderExtensionCapability{URI: colorSpaceURI}, webrtc.RTPCodecTypeVideo); err != nil {
+			return nil, err
+		}
 		if err := mediaEngine.RegisterHeaderExtension(webrtc.RTPHeaderExtensionCapability{URI: "http://www.webrtc.org/experiments/rtp-hdrext/playout-delay"}, webrtc.RTPCodecTypeVideo); err != nil {
 			return nil, err
 		}

@@ -8,11 +8,12 @@ import (
 )
 
 type H264Frame struct {
-	Data      []byte
-	Result    int
-	Duration  time.Duration
-	Timestamp int64
-	HasPTS    bool
+	Data       []byte
+	Result     int
+	Duration   time.Duration
+	Timestamp  int64
+	HasPTS     bool
+	ColorSpace [4]byte
 }
 
 type H264Subscription struct {
@@ -121,7 +122,7 @@ func (s *H264Source) run() {
 			ticker.Reset(time.Second / time.Duration(fps))
 		}
 
-		data, result, pts, hasPTS := readVideo(vision, screen, s.h265)
+		data, result, pts, hasPTS, color := readVideo(vision, screen, s.h265)
 		if result < 0 {
 			frame := H264Frame{Result: result}
 			for _, subscription := range subscribers {
@@ -135,11 +136,12 @@ func (s *H264Source) run() {
 		idle = false
 
 		frame := H264Frame{
-			Data:      data,
-			Result:    result,
-			Duration:  time.Second / time.Duration(fps),
-			Timestamp: time.Since(startTime).Microseconds(),
-			HasPTS:    hasPTS,
+			Data:       data,
+			Result:     result,
+			Duration:   time.Second / time.Duration(fps),
+			Timestamp:  time.Since(startTime).Microseconds(),
+			HasPTS:     hasPTS,
+			ColorSpace: color,
 		}
 		if hasPTS {
 			frame.Timestamp = clock.at(pts).Microseconds()

@@ -46,6 +46,14 @@ export function getMediaSize(screen: Element, fallback?: MediaSize | null): Medi
 }
 
 export function isMediaReady(screen: Element) {
+  if (screen.matches('[data-direct-screen]')) {
+    const media = getDrawableMedia(screen);
+    return (
+      !!getMediaSize(screen) &&
+      !!media &&
+      (!(media instanceof HTMLVideoElement) || media.readyState >= 2)
+    );
+  }
   if (screen instanceof HTMLVideoElement) {
     return screen.readyState >= 2 && !!getMediaSize(screen);
   }
@@ -117,12 +125,30 @@ export function detectFrameContent(screen: Element, mediaSize: MediaSize): Frame
   }
 }
 
+// Direct playback keeps a stable input target while swapping SDR Canvas and
+// native HDR video underneath it. Pixel readers must use the visible child.
+export function getDrawableMedia(screen: Element) {
+  if (screen.matches('[data-direct-screen]')) {
+    const video = screen.querySelector('video');
+    if (video && video.style.display !== 'none') return video;
+    return screen.querySelector('canvas');
+  }
+  return screen instanceof HTMLVideoElement ||
+    screen instanceof HTMLImageElement ||
+    screen instanceof HTMLCanvasElement
+    ? screen
+    : null;
+}
+
 function drawMediaFrame(
   context: CanvasRenderingContext2D,
   screen: Element,
   width: number,
   height: number
 ) {
+  const media = getDrawableMedia(screen);
+  if (!media) return false;
+  screen = media;
   if (
     screen instanceof HTMLVideoElement ||
     screen instanceof HTMLImageElement ||

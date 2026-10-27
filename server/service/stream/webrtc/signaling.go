@@ -163,6 +163,9 @@ func (s *SignalingHandler) handleVideoOffer(data string) error {
 	}
 	for _, sender := range s.client.video.GetSenders() {
 		for _, extension := range sender.GetParameters().HeaderExtensions {
+			if extension.URI == colorSpaceURI {
+				s.client.track.colorID.Store(uint32(extension.ID))
+			}
 			if extension.URI == "http://www.webrtc.org/experiments/rtp-hdrext/playout-delay" {
 				s.client.track.delayID.Store(uint32(extension.ID))
 			}

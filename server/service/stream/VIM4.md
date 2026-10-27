@@ -60,6 +60,13 @@ Capture PTS supplies RTP and Direct timestamps with continuity across encoder
 restarts. Each codec has one source shared by WebRTC and Direct; the final
 subscriber releases that source. Changing transport within a codec preserves
 the encoder, and teardown of a previously selected codec cannot stop its successor.
+On native-HDR 5.15, `vim4h265src` follows the manager's global conversion
+preference and input EOTF. It reopens capture on changes while keeping the
+WebRTC connection. Main10 is negotiated independently of the current input;
+the RTP color-space extension follows each encoded frame's caps. Settings
+include `h265Main10`, allowing the frontend to select H.264 SDR when the browser
+cannot negotiate Main10. HDR Direct playback uses a native generated video
+track; Canvas is used only for SDR or browsers without that API.
 Screenshots use fresh independent frames instead of stealing streaming AUs;
 encoded snapshots require GStreamer libav decoders. HDMI audio uses
 `hw:AMLAUGESOUND,0`; microphone playback requires `aplay` and

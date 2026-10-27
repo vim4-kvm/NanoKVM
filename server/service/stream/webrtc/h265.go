@@ -23,7 +23,7 @@ func newH265Manager() *WebRTCManager {
 func registerH265(engine *webrtc.MediaEngine) error {
 	feedback := []webrtc.RTCPFeedback{{Type: "goog-remb"}, {Type: "ccm", Parameter: "fir"}, {Type: "nack"}, {Type: "nack", Parameter: "pli"}}
 	for _, codec := range []webrtc.RTPCodecParameters{
-		{RTPCodecCapability: webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH265, ClockRate: 90000, RTCPFeedback: feedback}, PayloadType: 116},
+		{RTPCodecCapability: webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH265, ClockRate: 90000, SDPFmtpLine: h265Fmtp(), RTCPFeedback: feedback}, PayloadType: 116},
 		{RTPCodecCapability: webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeRTX, ClockRate: 90000, SDPFmtpLine: "apt=116"}, PayloadType: 117},
 	} {
 		if err := engine.RegisterCodec(codec, webrtc.RTPCodecTypeVideo); err != nil {

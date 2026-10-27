@@ -38,7 +38,7 @@ func (s *Service) Snapshot(c *gin.Context) {
 func (s *Service) GetSettings(c *gin.Context) {
 	var rsp proto.Response
 	settings := common.GetKvmVision().VideoSettings()
-	rsp.OkRspWithData(c, gin.H{"width": settings.Width, "height": settings.Height, "bitrate": settings.Bitrate, "gop": settings.GOP, "fps": settings.FPS, "quality": settings.Quality, "rateControl": settings.RateControl, "actualFPS": GetFrameRateCounter().GetFPS()})
+	rsp.OkRspWithData(c, gin.H{"width": settings.Width, "height": settings.Height, "bitrate": settings.Bitrate, "gop": settings.GOP, "fps": settings.FPS, "quality": settings.Quality, "rateControl": settings.RateControl, "actualFPS": GetFrameRateCounter().GetFPS(), "h265Main10": common.H265Main10()})
 }
 
 func updateSettings(c *gin.Context, update func(*common.VideoSettings)) {

@@ -19,7 +19,13 @@ import {
   videoScaleAtom
 } from '@/jotai/screen.ts';
 
-import { getMediaSize, getRenderedMediaRect, MediaSize, RenderedMediaRect } from './geometry.ts';
+import {
+  getDrawableMedia,
+  getMediaSize,
+  getRenderedMediaRect,
+  MediaSize,
+  RenderedMediaRect
+} from './geometry.ts';
 
 type SelectionRect = {
   left: number;
@@ -233,7 +239,8 @@ export const InputRegionOverlay = () => {
     }
 
     const canvas = magnifierCanvasRef.current;
-    const screen = document.getElementById('screen');
+    const container = document.getElementById('screen');
+    const screen = container ? getDrawableMedia(container) : null;
     if (!canvas || !screen) {
       return;
     }
