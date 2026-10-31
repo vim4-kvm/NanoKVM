@@ -40,6 +40,9 @@ func H265Main10() bool {
 
 func captureFactory() string {
 	if wave5Backend() {
+		if _, broker := os.LookupEnv("VIM4_BROKER_SOCKET"); broker {
+			return "vim4brokersrc"
+		}
 		return "vim4v4l2src"
 	}
 	if secondaryHDMICapture() {
