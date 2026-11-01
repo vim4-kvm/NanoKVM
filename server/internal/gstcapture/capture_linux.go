@@ -110,6 +110,16 @@ static int int_property_value(const char *factory, const char *name, int *value)
     gst_object_unref(element);
     return found;
 }
+static void snapshot_gate(GstElement *valve, int drop) {
+    if (valve) g_object_set(valve, "drop", drop, NULL);
+}
+static int factory_available(const char *name) {
+    gst_init(NULL, NULL);
+    GstElementFactory *factory = gst_element_factory_find(name);
+    if (!factory) return 0;
+    gst_object_unref(factory);
+    return 1;
+}
 */
 import "C"
 
@@ -137,6 +147,13 @@ type Frame struct {
 	CaptureAge time.Duration
 }
 
+// SnapshotRequest borrows the active raw branch. Cancellation must not stop
+// the encoder, and a buffered reply lets capture finish after the caller leaves.
+type SnapshotRequest struct {
+	Context context.Context
+	Reply   chan []byte
+}
+
 // IntPropertyValue queries device status without starting capture or encoding.
 func IntPropertyValue(factory, property string) (int, bool) {
 	f, p := C.CString(factory), C.CString(property)
@@ -148,6 +165,13 @@ func IntPropertyValue(factory, property string) (int, bool) {
 }
 
 var timingEnabled = os.Getenv("VIM4_VIDEO_TIMING") == "1"
+
+// FactoryAvailable inspects the current registry; it starts no hardware.
+func FactoryAvailable(name string) bool {
+	n := C.CString(name)
+	defer C.free(unsafe.Pointer(n))
+	return C.factory_available(n) != 0
+}
 
 // IntPropertyRange inspects the loaded plugin without starting a pipeline.
 func IntPropertyRange(factory, property string) (min, max int, ok bool) {
@@ -168,6 +192,13 @@ func IntPropertyRange(factory, property string) (min, max int, ok bool) {
 // No encoded buffers are dropped here: discarding an inter frame can corrupt a
 // GOP. Backpressure is bounded by the appsink queue instead.
 func Run(ctx context.Context, description string, keyframes <-chan struct{}, consume func(Frame) error) error {
+	return RunWithSnapshots(ctx, description, keyframes, nil, consume)
+}
+
+// RunWithSnapshots also services a valve named snapshot_valve and an appsink
+// named snapshot. Only a pending request opens that branch; idle snapshots hold
+// no raw capture lease. Missing branches reject a request with a nil reply.
+func RunWithSnapshots(ctx context.Context, description string, keyframes <-chan struct{}, snapshots <-chan SnapshotRequest, consume func(Frame) error) error {
 	if consume == nil {
 		return errors.New("missing frame consumer")
 	}
@@ -197,6 +228,30 @@ func Run(ctx context.Context, description string, keyframes <-chan struct{}, con
 		return errors.New("frames must be an appsink")
 	}
 	app := (*C.GstAppSink)(unsafe.Pointer(sink))
+	valveName, jpegName := C.CString("snapshot_valve"), C.CString("snapshot")
+	defer C.free(unsafe.Pointer(valveName))
+	defer C.free(unsafe.Pointer(jpegName))
+	valve := C.gst_bin_get_by_name((*C.GstBin)(unsafe.Pointer(pipeline)), valveName)
+	jpeg := C.gst_bin_get_by_name((*C.GstBin)(unsafe.Pointer(pipeline)), jpegName)
+	if valve != nil {
+		defer C.gst_object_unref(C.gpointer(valve))
+	}
+	if jpeg != nil {
+		defer C.gst_object_unref(C.gpointer(jpeg))
+	}
+	var pending *SnapshotRequest
+	var after C.GstClockTime
+	finishSnapshot := func(data []byte) {
+		C.snapshot_gate(valve, 1)
+		if pending != nil {
+			select {
+			case pending.Reply <- data:
+			default:
+			}
+			pending = nil
+		}
+	}
+	defer func() { finishSnapshot(nil) }()
 	C.gst_app_sink_set_max_buffers(app, 2)
 	C.gst_app_sink_set_drop(app, 0)
 	// Release DMA-bufs and the hardware encoder even on callback failure.
@@ -219,6 +274,55 @@ func Run(ctx context.Context, description string, keyframes <-chan struct{}, con
 			err := fmt.Errorf("capture: %s", C.GoString(msg))
 			C.g_free(C.gpointer(msg))
 			return err
+		}
+		if pending != nil {
+			if pending.Context.Err() != nil {
+				finishSnapshot(nil)
+			} else if jpeg != nil {
+				sample := C.gst_app_sink_try_pull_sample((*C.GstAppSink)(unsafe.Pointer(jpeg)), 0)
+				if sample != nil {
+					var mapInfo C.GstMapInfo
+					var pts, duration C.guint64
+					var width, height, keyframe C.int
+					var data []byte
+					if C.sample_data(sample, &mapInfo, &pts, &duration, &width, &height, &keyframe) != 0 {
+						fresh := uint64(pts) != ^uint64(0) && C.GstClockTime(pts) > after
+						if fresh {
+							data = C.GoBytes(unsafe.Pointer(mapInfo.data), C.int(mapInfo.size))
+						}
+						C.release_sample(sample, &mapInfo)
+						if !fresh {
+							continue
+						}
+					} else {
+						C.gst_sample_unref(sample)
+					}
+					finishSnapshot(data)
+				}
+			}
+		}
+		select {
+		case request, open := <-snapshots:
+			if !open {
+				snapshots = nil
+				break
+			}
+			if pending != nil || valve == nil || jpeg == nil || C.is_appsink(jpeg) == 0 || request.Context.Err() != nil {
+				select {
+				case request.Reply <- nil:
+				default:
+				}
+			} else {
+				// Discard an old JPEG before opening the gate. Never return a
+				// previous request's frame as a fresh screenshot.
+				for stale := C.gst_app_sink_try_pull_sample((*C.GstAppSink)(unsafe.Pointer(jpeg)), 0); stale != nil; stale = C.gst_app_sink_try_pull_sample((*C.GstAppSink)(unsafe.Pointer(jpeg)), 0) {
+					C.gst_sample_unref(stale)
+				}
+				pending = &request
+				after = C.gst_element_get_current_running_time(pipeline)
+				C.snapshot_gate(valve, 0)
+			}
+		default:
 		}
 		select {
 		case <-keyframes:

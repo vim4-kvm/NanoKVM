@@ -108,6 +108,16 @@ ejected through the manager. The legacy disk switch cannot eject another disk.
 
 ## Installation and updates
 
+The P0-5 candidate uses the common `vim4h265src` capability property on both
+video backends, including Wave5's AMLY/HDR10-controls/P010/Main10/plugin probe.
+On Wave5 it also requires `vim4pq2sdr`. During HEVC streaming, snapshots request
+one fresh frame through the shared source's `raw` pad and an idle valve, then
+GPU tone map it before hardware JPEG. They never open a second VDIN or stop the
+live encoder. The request is cancelled with its caller; mode changes/teardown
+release pending requests. 5.15 retains its independent SDR capture path.
+This is a feature-branch candidate; application/GPU board acceptance is recorded
+separately in the workspace P0-5 evidence.
+
 On native-HDR 5.15, the launcher enables `VIM4_SECONDARY_HDMI_CAPTURE=1` and
 the shared `vim4vdin1src` captures SDR from VDIN1 for H.264, MJPEG and
 snapshots. H.265 uses `vim4h265src`: with global HDR conversion disabled, PQ

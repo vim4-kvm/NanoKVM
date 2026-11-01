@@ -82,6 +82,25 @@ func (k *KvmVision) Snapshot(ctx context.Context) ([]byte, error) {
 	}
 	codec := streamCodec(k.StreamType)
 	k.mu.Unlock()
+	if wave5Backend() && codec == codecH265 && H265Main10() {
+		ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		reply := make(chan []byte, 1)
+		select {
+		case k.screenshots <- gstcapture.SnapshotRequest{Context: ctx, Reply: reply}:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		select {
+		case data := <-reply:
+			if len(data) == 0 {
+				return nil, errors.New("raw screenshot branch unavailable")
+			}
+			return data, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 
 	requested := time.Now()
 	if codec != codecJPEG {
