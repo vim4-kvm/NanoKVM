@@ -380,17 +380,23 @@ func (s VideoSettings) pipelineAtRate(mode uint8, rate int) string {
 	if wave5Backend() || secondaryHDMICapture() {
 		p += fmt.Sprintf(" height=%d", s.Height)
 	}
-	p += " ! queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 ! "
 	_, _, hardwareJPEG := gstcapture.IntPropertyRange("vim4jpegenc", "quality")
-	fps := s.FPS
-	if mode == STREAM_TYPE_MJPEG && hardwareJPEG && rate > 60 {
-		fps = 60
+	limit := s.FPS
+	if mode == STREAM_TYPE_MJPEG {
+		maximum := 60
+		if !hardwareJPEG {
+			maximum = 10
+		}
+		if limit == 0 || limit > maximum {
+			limit = maximum
+		}
 	}
-	if mode == STREAM_TYPE_MJPEG && !hardwareJPEG && (fps == 0 || fps > 10) {
-		fps = 10
+	if wave5Backend() {
+		p += fmt.Sprintf(" max-fps=%d", limit)
 	}
-	if fps > 0 {
-		p += fmt.Sprintf("videorate drop-only=true ! video/x-raw,framerate=%d/1 ! ", fps)
+	p += " ! queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 ! "
+	if !wave5Backend() && limit > 0 {
+		p += fmt.Sprintf("videorate drop-only=true max-rate=%d ! ", limit)
 	}
 	if mode == STREAM_TYPE_MJPEG {
 		if hardwareJPEG {
