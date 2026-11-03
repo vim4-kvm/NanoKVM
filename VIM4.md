@@ -4,6 +4,9 @@ The `vim4` branch keeps NanoKVM's desktop, accounts/roles, MCP, PicoClaw,
 control regions and mobile gestures. Build-tagged adapters replace hardware and
 system operations on Ubuntu; the default build retains libkvm.
 
+On Wave5, H.264 and H.265 default to GOP 0 with cyclic refresh disabled.
+Joining a stream or sending PLI requests an IDR.
+
 The board's `vim4-kvm-run` launcher selects vendor capture/encoding on 5.15 and
 `vim4v4l2src` / `vim4wave5enc` on the matched 7.x kernel. HDMI audio selects the
 corresponding ALSA card. Both kernels use the same NanoKVM configuration and
@@ -107,6 +110,16 @@ the shared locks. Media attached elsewhere or retained across a restart must be
 ejected through the manager. The legacy disk switch cannot eject another disk.
 
 ## Installation and updates
+
+The P0-5 candidate uses the common `vim4h265src` capability property on both
+video backends, including Wave5's AMLY/HDR10-controls/P010/Main10/plugin probe.
+On Wave5 it also requires `vim4pq2sdr`. During HEVC streaming, snapshots request
+one fresh frame through the shared source's `raw` pad and an idle valve, then
+GPU tone map it before hardware JPEG. They never open a second VDIN or stop the
+live encoder. The request is cancelled with its caller; mode changes/teardown
+release pending requests. 5.15 retains its independent SDR capture path.
+This is a feature-branch candidate; application/GPU board acceptance is recorded
+separately in the workspace P0-5 evidence.
 
 On native-HDR 5.15, the launcher enables `VIM4_SECONDARY_HDMI_CAPTURE=1` and
 the shared `vim4vdin1src` captures SDR from VDIN1 for H.264, MJPEG and

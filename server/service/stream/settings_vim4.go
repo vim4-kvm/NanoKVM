@@ -85,13 +85,13 @@ func (s *Service) SetFps(c *gin.Context) {
 }
 func (s *Service) SetGop(c *gin.Context) {
 	var req struct {
-		GOP int `json:"gop"`
+		GOP *int `json:"gop" binding:"required"`
 	}
 	if proto.ParseFormRequest(c, &req) != nil {
 		invalidSettings(c)
 		return
 	}
-	updateSettings(c, func(s *common.VideoSettings) { s.GOP = req.GOP })
+	updateSettings(c, func(s *common.VideoSettings) { s.GOP = *req.GOP })
 }
 func (s *Service) SetQuality(c *gin.Context) {
 	var req struct {

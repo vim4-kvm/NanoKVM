@@ -3,13 +3,76 @@
 package gstcapture
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"image/jpeg"
 	"io"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func TestSharedSnapshotReopensGateAndLeavesVideoRunning(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	requests := make(chan SnapshotRequest, 1)
+	ready, done := make(chan struct{}, 1), make(chan error, 1)
+	var frames atomic.Int32
+	go func() {
+		done <- RunWithSnapshots(ctx,
+			"videotestsrc is-live=true ! video/x-raw,format=I420,width=16,height=16,framerate=30/1 ! tee name=raw raw. ! queue ! appsink name=frames sync=false raw. ! valve name=snapshot_valve drop=true ! queue max-size-buffers=1 leaky=downstream ! jpegenc ! appsink name=snapshot sync=false async=false max-buffers=1 drop=true enable-last-sample=false",
+			nil, requests, func(Frame) error {
+				if frames.Add(1) == 1 {
+					ready <- struct{}{}
+				}
+				return nil
+			})
+	}()
+	select {
+	case <-ready:
+	case err := <-done:
+		t.Fatalf("startup: %v", err)
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	for i := 0; i < 3; i++ {
+		before := frames.Load()
+		reply := make(chan []byte, 1)
+		requests <- SnapshotRequest{Context: ctx, Reply: reply}
+		select {
+		case data := <-reply:
+			info, err := jpeg.DecodeConfig(bytes.NewReader(data))
+			if err != nil || info.Width != 16 || info.Height != 16 {
+				t.Fatalf("snapshot %d: %v %+v", i, err, info)
+			}
+			if frames.Load() <= before {
+				t.Fatal("video stopped during snapshot")
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	// A caller can disappear without blocking the capture owner or its teardown.
+	cancelled, stop := context.WithCancel(ctx)
+	stop()
+	reply := make(chan []byte, 1)
+	requests <- SnapshotRequest{Context: cancelled, Reply: reply}
+	select {
+	case data := <-reply:
+		if data != nil {
+			t.Fatal("cancelled request produced a frame")
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	close(requests)
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("shutdown: %v", err)
+	}
+}
 
 func TestPropertyProbeRejectsMissingAndWrongTypes(t *testing.T) {
 	if min, max, ok := IntPropertyRange("videotestsrc", "num-buffers"); !ok || min > 0 || max < 60 {

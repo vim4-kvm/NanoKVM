@@ -75,7 +75,8 @@ type KvmVision struct {
 	retryAfter time.Time
 	settings   VideoSettings
 	// Keyframe requests bypass mu so RTCP handlers never wait behind a frame read.
-	keyframes chan struct{}
+	keyframes   chan struct{}
+	screenshots chan gstcapture.SnapshotRequest
 	// selected mirrors StreamType for readers that must not wait behind a
 	// frame read holding mu (up to 500ms), such as the 20ms audio sender.
 	selected atomic.Uint32
@@ -86,7 +87,7 @@ type KvmVision struct {
 var vim4Vision = newKvmVision()
 
 func newKvmVision() *KvmVision {
-	k := &KvmVision{StreamType: STREAM_TYPE_H264_WEBRTC, settings: loadVideoSettings(), keyframes: make(chan struct{}, 1)}
+	k := &KvmVision{StreamType: STREAM_TYPE_H264_WEBRTC, settings: loadVideoSettings(), keyframes: make(chan struct{}, 1), screenshots: make(chan gstcapture.SnapshotRequest, 1)}
 	k.selected.Store(uint32(k.StreamType))
 	return k
 }
@@ -135,7 +136,7 @@ func (k *KvmVision) startLocked(input inputMode) {
 				encoderMemory.Close()
 			}
 		}()
-		err := gstcapture.Run(ctx, pipeline, keyframes, func(frame gstcapture.Frame) error {
+		err := gstcapture.RunWithSnapshots(ctx, pipeline, keyframes, k.screenshots, func(frame gstcapture.Frame) error {
 			if encoderMemory != nil {
 				encoderMemory.Close()
 				encoderMemory = nil
@@ -369,20 +370,33 @@ func (s VideoSettings) pipelineAtRate(mode uint8, rate int) string {
 		if s.RateControl == "vbr" {
 			qp = vbrQPMax
 		}
-		return fmt.Sprintf("vim4h265src bitrate=%d gop=%d framerate=%d height=%d qp-max=%d ! appsink name=frames sync=false", s.Bitrate, s.GOP, rate, s.Height, qp)
+		pipeline := fmt.Sprintf("vim4h265src name=video_source bitrate=%d gop=%d framerate=%d height=%d qp-max=%d ! appsink name=frames sync=false", s.Bitrate, s.GOP, rate, s.Height, qp)
+		if wave5Backend() {
+			pipeline += " video_source.raw ! valve name=snapshot_valve drop=true ! queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 leaky=downstream ! vim4pq2sdr ! vim4jpegenc quality=90 ! appsink name=snapshot sync=false async=false max-buffers=1 drop=true enable-last-sample=false"
+		}
+		return pipeline
 	}
 	p := captureFactory()
 	if wave5Backend() || secondaryHDMICapture() {
 		p += fmt.Sprintf(" height=%d", s.Height)
 	}
-	p += " ! queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 ! "
 	_, _, hardwareJPEG := gstcapture.IntPropertyRange("vim4jpegenc", "quality")
-	fps := s.FPS
-	if mode == STREAM_TYPE_MJPEG && !hardwareJPEG && (fps == 0 || fps > 10) {
-		fps = 10
+	limit := s.FPS
+	if mode == STREAM_TYPE_MJPEG {
+		maximum := 60
+		if !hardwareJPEG {
+			maximum = 10
+		}
+		if limit == 0 || limit > maximum {
+			limit = maximum
+		}
 	}
-	if fps > 0 {
-		p += fmt.Sprintf("videorate drop-only=true ! video/x-raw,framerate=%d/1 ! ", fps)
+	if wave5Backend() {
+		p += fmt.Sprintf(" max-fps=%d", limit)
+	}
+	p += " ! queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 ! "
+	if !wave5Backend() && limit > 0 {
+		p += fmt.Sprintf("vim4ptsrate max-rate=%d ! ", limit)
 	}
 	if mode == STREAM_TYPE_MJPEG {
 		if hardwareJPEG {

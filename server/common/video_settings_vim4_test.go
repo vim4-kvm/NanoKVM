@@ -20,12 +20,13 @@ func TestVideoSettingsRejectUnsupportedControls(t *testing.T) {
 	valid := VideoSettings{1920, 1080, 8000, 30, 60, 80, "cbr"}
 	high := valid
 	high.Bitrate = 60000
+	high.FPS = 120
 	if err := high.Validate(); err != nil {
 		t.Fatalf("60 Mbps rejected: %v", err)
 	}
 	for _, change := range []func(*VideoSettings){
 		func(s *VideoSettings) { s.Height = 720 }, func(s *VideoSettings) { s.Bitrate = 60001 },
-		func(s *VideoSettings) { s.FPS = 61 }, func(s *VideoSettings) { s.Quality = 0 }, func(s *VideoSettings) { s.GOP = 0 },
+		func(s *VideoSettings) { s.FPS = 121 }, func(s *VideoSettings) { s.Quality = 0 }, func(s *VideoSettings) { s.GOP = -1 },
 		func(s *VideoSettings) { s.RateControl = "" }, func(s *VideoSettings) { s.RateControl = "CBR" },
 	} {
 		s := valid
@@ -37,13 +38,17 @@ func TestVideoSettingsRejectUnsupportedControls(t *testing.T) {
 }
 
 func TestSettingsWithoutRateControlKeepStoredValues(t *testing.T) {
+	t.Setenv("VIM4_VIDEO_BACKEND", "wave5")
 	path := filepath.Join(t.TempDir(), "video.json")
-	if err := os.WriteFile(path, []byte(`{"width":1920,"height":1080,"bitrate":5000,"gop":60,"fps":30,"quality":70}`), 0600); err != nil {
-		t.Fatal(err)
-	}
 	previous := videoSettingsPath
 	videoSettingsPath = path
 	defer func() { videoSettingsPath = previous }()
+	if got := loadVideoSettings(); got.GOP != 0 || got.Validate() != nil {
+		t.Fatalf("invalid first-run Wave5 settings: %+v", got)
+	}
+	if err := os.WriteFile(path, []byte(`{"width":1920,"height":1080,"bitrate":5000,"gop":60,"fps":30,"quality":70}`), 0600); err != nil {
+		t.Fatal(err)
+	}
 	if got := loadVideoSettings(); got != (VideoSettings{1920, 1080, 5000, 60, 30, 70, "cbr"}) {
 		t.Fatalf("upgrade changed stored settings: %+v", got)
 	}
@@ -51,7 +56,15 @@ func TestSettingsWithoutRateControlKeepStoredValues(t *testing.T) {
 
 func TestJPEGProducesDecodableFrames(t *testing.T) {
 	s := VideoSettings{1280, 720, 8000, 30, 0, 80, "cbr"}
-	pipeline := strings.Replace(s.pipeline(STREAM_TYPE_MJPEG), "vfmcapsrc", "videotestsrc num-buffers=12 ! video/x-raw,width=1280,height=720,framerate=60/1", 1)
+	for _, fps := range []int{0, 10} {
+		s.FPS = fps
+		testVendorJPEGFrames(t, s)
+	}
+}
+
+func testVendorJPEGFrames(t *testing.T, s VideoSettings) {
+	t.Helper()
+	pipeline := strings.Replace(s.pipeline(STREAM_TYPE_MJPEG), "vfmcapsrc", `videotestsrc num-buffers=61 ! video/x-raw,width=1280,height=720,framerate=60/1 ! capssetter caps="video/x-raw,framerate=(fraction)0/1"`, 1)
 	frames := 0
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -69,8 +82,8 @@ func TestJPEGProducesDecodableFrames(t *testing.T) {
 	if !errors.Is(err, io.EOF) {
 		t.Fatalf("pipeline did not finish: %v", err)
 	}
-	if frames < 1 {
-		t.Fatal("no JPEG frames")
+	if frames != 11 {
+		t.Fatalf("FPS setting %d: got %d JPEGs, want 11 including the first", s.FPS, frames)
 	}
 }
 

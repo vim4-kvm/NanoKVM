@@ -17,8 +17,11 @@ in source rate is checked every 500ms. Three consecutive equal, valid readings
 with a different effective budget cancel capture; the normal retry path reopens
 it (including its one-second retry delay). Loss of HDMI lock does not trigger
 repeated restarts. Frame-rate transitions may briefly interrupt video. This does not
-alter capture timestamps or add pacing/buffering. Keep GOP 120 and performance
-governor; PLI recovery remains enabled.
+alter capture timestamps or add pacing/buffering. The vendor default GOP is 120.
+Wave5 defaults to GOP 0 for AVC and HEVC. Both disable cyclic refresh, send IDRs
+on join or PLI and use frame-level rate control with a minimum I-frame QP of 26.
+After each AVC IDR the P-frame QP floor starts at 12 and drops by one per frame to zero.
+An explicitly saved positive GOP keeps its periodic keyframes.
 
 At pipeline creation, the application checks the loaded plugin's writable integer
 `framerate` range. Unsupported budgets are omitted, preserving the old plugin's
