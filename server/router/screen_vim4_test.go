@@ -35,7 +35,7 @@ func TestLegacyScreenAndModeShareCodecAndPreserveCaptureResolution(t *testing.T)
 	if body := request("/screen", `{"type":"resolution","value":600}`); !strings.Contains(body, `"code":0`) || vision.VideoSettings() != settings {
 		t.Fatalf("display changed capture: %s", body)
 	}
-	for _, body := range []string{`{"type":"type","value":3}`, `{"type":"gop","value":-1}`, `{"type":"quality","value":99999}`, `{"type":"fps","value":61}`} {
+	for _, body := range []string{`{"type":"type","value":3}`, `{"type":"gop","value":-1}`, `{"type":"quality","value":99999}`, `{"type":"fps","value":121}`} {
 		if response := request("/screen", body); strings.Contains(response, `"code":0`) {
 			t.Errorf("invalid screen setting accepted: %s", body)
 		}

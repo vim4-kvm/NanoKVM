@@ -383,6 +383,9 @@ func (s VideoSettings) pipelineAtRate(mode uint8, rate int) string {
 	p += " ! queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 ! "
 	_, _, hardwareJPEG := gstcapture.IntPropertyRange("vim4jpegenc", "quality")
 	fps := s.FPS
+	if mode == STREAM_TYPE_MJPEG && hardwareJPEG && rate > 60 {
+		fps = 60
+	}
 	if mode == STREAM_TYPE_MJPEG && !hardwareJPEG && (fps == 0 || fps > 10) {
 		fps = 10
 	}
