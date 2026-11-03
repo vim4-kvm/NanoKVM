@@ -52,7 +52,15 @@ func TestSettingsWithoutRateControlKeepStoredValues(t *testing.T) {
 
 func TestJPEGProducesDecodableFrames(t *testing.T) {
 	s := VideoSettings{1280, 720, 8000, 30, 0, 80, "cbr"}
-	pipeline := strings.Replace(s.pipeline(STREAM_TYPE_MJPEG), "vfmcapsrc", "videotestsrc num-buffers=12 ! video/x-raw,width=1280,height=720,framerate=60/1", 1)
+	for _, fps := range []int{0, 10} {
+		s.FPS = fps
+		testVendorJPEGFrames(t, s)
+	}
+}
+
+func testVendorJPEGFrames(t *testing.T, s VideoSettings) {
+	t.Helper()
+	pipeline := strings.Replace(s.pipeline(STREAM_TYPE_MJPEG), "vfmcapsrc", `videotestsrc num-buffers=61 ! video/x-raw,width=1280,height=720,framerate=60/1 ! capssetter caps="video/x-raw,framerate=(fraction)0/1"`, 1)
 	frames := 0
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -70,8 +78,8 @@ func TestJPEGProducesDecodableFrames(t *testing.T) {
 	if !errors.Is(err, io.EOF) {
 		t.Fatalf("pipeline did not finish: %v", err)
 	}
-	if frames < 1 {
-		t.Fatal("no JPEG frames")
+	if frames != 11 {
+		t.Fatalf("FPS setting %d: got %d JPEGs, want 11 including the first", s.FPS, frames)
 	}
 }
 
