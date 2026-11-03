@@ -4,6 +4,9 @@ The `vim4` branch keeps NanoKVM's desktop, accounts/roles, MCP, PicoClaw,
 control regions and mobile gestures. Build-tagged adapters replace hardware and
 system operations on Ubuntu; the default build retains libkvm.
 
+On Wave5, H.264 and H.265 default to GOP 0 with cyclic refresh disabled.
+Joining a stream or sending PLI requests an IDR.
+
 The board's `vim4-kvm-run` launcher selects vendor capture/encoding on 5.15 and
 `vim4v4l2src` / `vim4wave5enc` on the matched 7.x kernel. HDMI audio selects the
 corresponding ALSA card. Both kernels use the same NanoKVM configuration and
