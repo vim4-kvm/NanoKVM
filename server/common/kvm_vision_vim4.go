@@ -397,10 +397,6 @@ func (s VideoSettings) pipelineAtRate(mode uint8, rate int) string {
 	p += " ! queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 ! "
 	if !wave5Backend() && limit > 0 {
 		p += fmt.Sprintf("vim4ptsrate max-rate=%d ! ", limit)
-		if !secondaryHDMICapture() {
-			// vfmcapsrc publishes VFR. Give videorate a concrete output interval.
-			p += fmt.Sprintf("video/x-raw,framerate=%d/1 ! ", limit)
-		}
 	}
 	if mode == STREAM_TYPE_MJPEG {
 		if hardwareJPEG {
