@@ -391,11 +391,11 @@ func (s VideoSettings) pipelineAtRate(mode uint8, rate int) string {
 			limit = maximum
 		}
 	}
-	if wave5Backend() {
+	if captureFactory() == "vim4v4l2src" {
 		p += fmt.Sprintf(" max-fps=%d", limit)
 	}
 	p += " ! queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 ! "
-	if !wave5Backend() && limit > 0 {
+	if captureFactory() != "vim4v4l2src" && limit > 0 {
 		p += fmt.Sprintf("vim4ptsrate max-rate=%d ! ", limit)
 	}
 	if mode == STREAM_TYPE_MJPEG {

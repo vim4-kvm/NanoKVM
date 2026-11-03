@@ -37,6 +37,24 @@ func TestVideoSettingsRejectUnsupportedControls(t *testing.T) {
 	}
 }
 
+func TestBrokerPipelineKeepsCaptureOwnership(t *testing.T) {
+	t.Setenv("VIM4_VIDEO_BACKEND", "wave5")
+	t.Setenv("VIM4_BROKER_SOCKET", "/tmp/test-broker.sock")
+	s := VideoSettings{1920, 1080, 8000, 30, 30, 80, "cbr"}
+	if H265Main10() {
+		t.Fatal("NV12 broker advertised native HDR capture")
+	}
+	for _, mode := range []uint8{STREAM_TYPE_H264_WEBRTC, STREAM_TYPE_H265_WEBRTC, STREAM_TYPE_MJPEG} {
+		pipeline := s.pipelineAtRate(mode, 30)
+		if !strings.HasPrefix(pipeline, "vim4brokersrc ") || strings.Contains(pipeline, "max-fps=") || strings.Contains(pipeline, "vim4h265src") {
+			t.Fatalf("broker ownership or source properties violated: %s", pipeline)
+		}
+		if !strings.Contains(pipeline, "vim4ptsrate max-rate=") {
+			t.Fatalf("broker rate limit missing: %s", pipeline)
+		}
+	}
+}
+
 func TestSettingsWithoutRateControlKeepStoredValues(t *testing.T) {
 	t.Setenv("VIM4_VIDEO_BACKEND", "wave5")
 	path := filepath.Join(t.TempDir(), "video.json")

@@ -31,6 +31,11 @@ func secondaryHDMICapture() bool {
 // the global mapping and source EOTF may change without a new SDP exchange.
 // Eight-bit Main SDR also conforms to Main10, so the same track can carry both.
 func H265Main10() bool {
+	if wave5Backend() {
+		if _, broker := os.LookupEnv("VIM4_BROKER_SOCKET"); broker {
+			return false
+		}
+	}
 	capable, ok := gstcapture.IntPropertyValue("vim4h265src", "hdr-capable")
 	return ok && capable == 1 && (!wave5Backend() || gstcapture.FactoryAvailable("vim4pq2sdr"))
 }
