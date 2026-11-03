@@ -83,7 +83,7 @@ export const VideoSettings = () => {
             <div className="flex items-center justify-between">
               <span>GOP</span>
               <InputNumber
-                min={1}
+                min={0}
                 max={200}
                 disabled={busy}
                 value={settings.gop}

@@ -26,7 +26,7 @@ func TestVideoSettingsRejectUnsupportedControls(t *testing.T) {
 	}
 	for _, change := range []func(*VideoSettings){
 		func(s *VideoSettings) { s.Height = 720 }, func(s *VideoSettings) { s.Bitrate = 60001 },
-		func(s *VideoSettings) { s.FPS = 121 }, func(s *VideoSettings) { s.Quality = 0 }, func(s *VideoSettings) { s.GOP = 0 },
+		func(s *VideoSettings) { s.FPS = 121 }, func(s *VideoSettings) { s.Quality = 0 }, func(s *VideoSettings) { s.GOP = -1 },
 		func(s *VideoSettings) { s.RateControl = "" }, func(s *VideoSettings) { s.RateControl = "CBR" },
 	} {
 		s := valid
@@ -38,13 +38,17 @@ func TestVideoSettingsRejectUnsupportedControls(t *testing.T) {
 }
 
 func TestSettingsWithoutRateControlKeepStoredValues(t *testing.T) {
+	t.Setenv("VIM4_VIDEO_BACKEND", "wave5")
 	path := filepath.Join(t.TempDir(), "video.json")
-	if err := os.WriteFile(path, []byte(`{"width":1920,"height":1080,"bitrate":5000,"gop":60,"fps":30,"quality":70}`), 0600); err != nil {
-		t.Fatal(err)
-	}
 	previous := videoSettingsPath
 	videoSettingsPath = path
 	defer func() { videoSettingsPath = previous }()
+	if got := loadVideoSettings(); got.GOP != 0 || got.Validate() != nil {
+		t.Fatalf("invalid first-run Wave5 settings: %+v", got)
+	}
+	if err := os.WriteFile(path, []byte(`{"width":1920,"height":1080,"bitrate":5000,"gop":60,"fps":30,"quality":70}`), 0600); err != nil {
+		t.Fatal(err)
+	}
 	if got := loadVideoSettings(); got != (VideoSettings{1920, 1080, 5000, 60, 30, 70, "cbr"}) {
 		t.Fatalf("upgrade changed stored settings: %+v", got)
 	}

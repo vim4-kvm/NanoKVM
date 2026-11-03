@@ -39,7 +39,7 @@ single-byte `3` requests resynchronization. Codec selection is by route.
 | POST `/resolution` | `SetResolution` | `width`, `height` |
 | POST `/rate-control` | `SetRateControlMode` | `mode`: `cbr` or `vbr` |
 | POST `/fps` | `SetFps` | `fps`: 0–60 (0 = input rate) |
-| POST `/gop` | `SetGop` | `gop`: 1–200 |
+| POST `/gop` | `SetGop` | `gop`: 0–200 frames. Zero requests IDRs on demand. |
 | POST `/quality` | `SetQuality` | `quality`: JPEG 1–100 or bitrate 1000–60000 Kbps |
 | POST `/mode` | `SetMode` | `mode`: `mjpeg`, `h264-webrtc`, `h264-direct`, `h265-webrtc`, `h265-direct` |
 
